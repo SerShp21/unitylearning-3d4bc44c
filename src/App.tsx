@@ -10,6 +10,8 @@ import Dashboard from "@/pages/Dashboard";
 import Classes from "@/pages/Classes";
 import Timetable from "@/pages/Timetable";
 import UserManagement from "@/pages/UserManagement";
+import Grades from "@/pages/Grades";
+import Attendance from "@/pages/Attendance";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -41,6 +43,8 @@ const App = () => (
             <Route path="/classes" element={<ProtectedRoute><Classes /></ProtectedRoute>} />
             <Route path="/timetable" element={<ProtectedRoute><Timetable /></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
+            <Route path="/grades" element={<ProtectedRoute><Grades /></ProtectedRoute>} />
+            <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
