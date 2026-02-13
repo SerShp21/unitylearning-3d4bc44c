@@ -1,13 +1,15 @@
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, LayoutDashboard, BookOpen, Calendar, Users, LogOut } from "lucide-react";
+import { GraduationCap, LayoutDashboard, BookOpen, Calendar, Users, LogOut, ClipboardList, Award } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const NAV_ITEMS = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/classes", icon: BookOpen, label: "Classes" },
   { to: "/timetable", icon: Calendar, label: "Timetable" },
+  { to: "/grades", icon: Award, label: "Grades" },
+  { to: "/attendance", icon: ClipboardList, label: "Attendance" },
 ];
 
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
