@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -13,12 +13,14 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Plus, GraduationCap } from "lucide-react";
 
+const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+
 const Grades = () => {
   const { user, isAdmin, role } = useAuth();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [selectedClass, setSelectedClass] = useState<string>("");
-  const [form, setForm] = useState({ class_id: "", student_id: "", title: "", score: "", max_score: "100", notes: "" });
+  const [form, setForm] = useState({ class_id: "", student_id: "", timetable_entry_id: "", title: "", score: "", max_score: "100", notes: "" });
 
   const canManage = isAdmin || role === "teacher";
 
@@ -46,6 +48,14 @@ const Grades = () => {
     },
   });
 
+  const { data: timetableEntries = [] } = useQuery({
+    queryKey: ["timetable"],
+    queryFn: async () => {
+      const { data } = await supabase.from("timetable_entries").select("*");
+      return data ?? [];
+    },
+  });
+
   const { data: grades = [] } = useQuery({
     queryKey: ["grades", selectedClass],
     queryFn: async () => {
@@ -58,6 +68,10 @@ const Grades = () => {
 
   const profileMap = Object.fromEntries(profiles.map(p => [p.user_id, p.full_name]));
   const classMap = Object.fromEntries(classes.map(c => [c.id, c.name]));
+  const timetableMap = Object.fromEntries(timetableEntries.map(t => [t.id, t]));
+
+  const entriesForClass = (classId: string) =>
+    timetableEntries.filter(e => e.class_id === classId);
 
   const studentsInClass = (classId: string) =>
     enrollments.filter(e => e.class_id === classId).map(e => ({
@@ -65,11 +79,15 @@ const Grades = () => {
       full_name: profileMap[e.student_id] || "Unknown",
     }));
 
+  const formatEntry = (entry: any) =>
+    `${DAYS[entry.day_of_week] ?? "?"} ${entry.start_time}-${entry.end_time}${entry.room ? ` (${entry.room})` : ""}`;
+
   const createGrade = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("grades").insert({
         class_id: form.class_id,
         student_id: form.student_id,
+        timetable_entry_id: form.timetable_entry_id || null,
         title: form.title,
         score: parseFloat(form.score),
         max_score: parseFloat(form.max_score),
@@ -80,7 +98,7 @@ const Grades = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["grades"] });
-      setForm({ class_id: "", student_id: "", title: "", score: "", max_score: "100", notes: "" });
+      setForm({ class_id: "", student_id: "", timetable_entry_id: "", title: "", score: "", max_score: "100", notes: "" });
       setOpen(false);
       toast.success("Grade added!");
     },
@@ -94,7 +112,6 @@ const Grades = () => {
     return "text-red-600";
   };
 
-  // Filter grades for students: only show their own
   const displayGrades = role === "student" ? grades.filter(g => g.student_id === user?.id) : grades;
 
   return (
@@ -116,7 +133,7 @@ const Grades = () => {
               <form onSubmit={e => { e.preventDefault(); createGrade.mutate(); }} className="space-y-4">
                 <div className="space-y-2">
                   <Label>Class</Label>
-                  <Select value={form.class_id} onValueChange={v => setForm(f => ({ ...f, class_id: v, student_id: "" }))}>
+                  <Select value={form.class_id} onValueChange={v => setForm(f => ({ ...f, class_id: v, student_id: "", timetable_entry_id: "" }))}>
                     <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
                     <SelectContent>
                       {classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
@@ -124,17 +141,31 @@ const Grades = () => {
                   </Select>
                 </div>
                 {form.class_id && (
-                  <div className="space-y-2">
-                    <Label>Student</Label>
-                    <Select value={form.student_id} onValueChange={v => setForm(f => ({ ...f, student_id: v }))}>
-                      <SelectTrigger><SelectValue placeholder="Select student" /></SelectTrigger>
-                      <SelectContent>
-                        {studentsInClass(form.class_id).map(s => (
-                          <SelectItem key={s.user_id} value={s.user_id}>{s.full_name}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                  <>
+                    <div className="space-y-2">
+                      <Label>Timetable Slot</Label>
+                      <Select value={form.timetable_entry_id} onValueChange={v => setForm(f => ({ ...f, timetable_entry_id: v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select slot (optional)" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">No specific slot</SelectItem>
+                          {entriesForClass(form.class_id).map(e => (
+                            <SelectItem key={e.id} value={e.id}>{formatEntry(e)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Student</Label>
+                      <Select value={form.student_id} onValueChange={v => setForm(f => ({ ...f, student_id: v }))}>
+                        <SelectTrigger><SelectValue placeholder="Select student" /></SelectTrigger>
+                        <SelectContent>
+                          {studentsInClass(form.class_id).map(s => (
+                            <SelectItem key={s.user_id} value={s.user_id}>{s.full_name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
                 )}
                 <div className="space-y-2">
                   <Label>Assignment Title</Label>
@@ -187,6 +218,7 @@ const Grades = () => {
                 <TableRow>
                   <TableHead>Assignment</TableHead>
                   <TableHead>Class</TableHead>
+                  <TableHead>Slot</TableHead>
                   {role !== "student" && <TableHead>Student</TableHead>}
                   <TableHead>Score</TableHead>
                   <TableHead>Percentage</TableHead>
@@ -196,10 +228,14 @@ const Grades = () => {
               <TableBody>
                 {displayGrades.map(g => {
                   const pct = ((g.score / g.max_score) * 100).toFixed(1);
+                  const entry = g.timetable_entry_id ? timetableMap[g.timetable_entry_id] : null;
                   return (
                     <TableRow key={g.id}>
                       <TableCell className="font-medium">{g.title}</TableCell>
                       <TableCell>{classMap[g.class_id] || "—"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {entry ? formatEntry(entry) : "—"}
+                      </TableCell>
                       {role !== "student" && <TableCell>{profileMap[g.student_id] || "Unknown"}</TableCell>}
                       <TableCell>
                         <span className={getScoreColor(g.score, g.max_score)}>{g.score}/{g.max_score}</span>
