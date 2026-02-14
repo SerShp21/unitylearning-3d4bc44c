@@ -11,17 +11,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, BookOpen, User, Users } from "lucide-react";
+import { Plus, BookOpen, User, Users, Pencil, UserMinus } from "lucide-react";
 
 const Classes = () => {
   const { user, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [enrollOpen, setEnrollOpen] = useState(false);
+  const [renameOpen, setRenameOpen] = useState(false);
   const [selectedClassId, setSelectedClassId] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", subject: "", description: "", teacher_id: "" });
+  const [renameForm, setRenameForm] = useState({ name: "", subject: "" });
 
-  // Fetch all classes with teacher profiles
   const { data: classes = [] } = useQuery({
     queryKey: ["classes"],
     queryFn: async () => {
@@ -31,7 +32,6 @@ const Classes = () => {
     },
   });
 
-  // Fetch teachers
   const { data: teachers = [] } = useQuery({
     queryKey: ["teachers"],
     queryFn: async () => {
@@ -43,7 +43,6 @@ const Classes = () => {
     },
   });
 
-  // Fetch students for enrollment
   const { data: students = [] } = useQuery({
     queryKey: ["students"],
     queryFn: async () => {
@@ -55,7 +54,6 @@ const Classes = () => {
     },
   });
 
-  // Fetch enrollments
   const { data: enrollments = [] } = useQuery({
     queryKey: ["enrollments"],
     queryFn: async () => {
@@ -64,7 +62,6 @@ const Classes = () => {
     },
   });
 
-  // Fetch all profiles for display
   const { data: profiles = [] } = useQuery({
     queryKey: ["all-profiles"],
     queryFn: async () => {
@@ -78,11 +75,8 @@ const Classes = () => {
   const createClass = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("classes").insert({
-        name: form.name,
-        subject: form.subject,
-        description: form.description,
-        teacher_id: form.teacher_id || null,
-        created_by: user!.id,
+        name: form.name, subject: form.subject, description: form.description,
+        teacher_id: form.teacher_id || null, created_by: user!.id,
       });
       if (error) throw error;
     },
@@ -92,6 +86,19 @@ const Classes = () => {
       setForm({ name: "", subject: "", description: "", teacher_id: "" });
       setOpen(false);
       toast.success("Class created!");
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const renameClass = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("classes").update({ name: renameForm.name, subject: renameForm.subject }).eq("id", selectedClassId!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["classes"] });
+      setRenameOpen(false);
+      toast.success("Class renamed!");
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -108,6 +115,18 @@ const Classes = () => {
     onError: (err: any) => toast.error(err.message),
   });
 
+  const unenrollStudent = useMutation({
+    mutationFn: async (enrollmentId: string) => {
+      const { error } = await supabase.from("class_enrollments").delete().eq("id", enrollmentId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["enrollments"] });
+      toast.success("Student removed from class!");
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
   const getEnrolledStudents = (classId: string) => enrollments.filter(e => e.class_id === classId);
 
   return (
@@ -115,9 +134,7 @@ const Classes = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Classes</h1>
-          <p className="text-muted-foreground mt-1">
-            {isAdmin ? "Create and manage classes" : "View your classes"}
-          </p>
+          <p className="text-muted-foreground mt-1">{isAdmin ? "Create and manage classes" : "View your classes"}</p>
         </div>
         {isAdmin && (
           <Dialog open={open} onOpenChange={setOpen}>
@@ -159,6 +176,26 @@ const Classes = () => {
         )}
       </div>
 
+      {/* Rename dialog */}
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Rename Class</DialogTitle></DialogHeader>
+          <form onSubmit={e => { e.preventDefault(); renameClass.mutate(); }} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Class Name</Label>
+              <Input value={renameForm.name} onChange={e => setRenameForm(f => ({ ...f, name: e.target.value }))} required />
+            </div>
+            <div className="space-y-2">
+              <Label>Subject</Label>
+              <Input value={renameForm.subject} onChange={e => setRenameForm(f => ({ ...f, subject: e.target.value }))} required />
+            </div>
+            <Button type="submit" className="w-full" disabled={renameClass.isPending}>
+              {renameClass.isPending ? "Saving..." : "Save Changes"}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
       {classes.length === 0 ? (
         <Card><CardContent className="p-8 text-center text-muted-foreground">
           <BookOpen className="h-12 w-12 mx-auto mb-3 opacity-40" />
@@ -176,7 +213,18 @@ const Classes = () => {
                       <CardTitle className="text-lg">{cls.name}</CardTitle>
                       <CardDescription>{cls.subject}</CardDescription>
                     </div>
-                    <Badge variant="secondary">{enrolled.length} students</Badge>
+                    <div className="flex items-center gap-1.5">
+                      {isAdmin && (
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
+                          setSelectedClassId(cls.id);
+                          setRenameForm({ name: cls.name, subject: cls.subject });
+                          setRenameOpen(true);
+                        }}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      <Badge variant="secondary">{enrolled.length} students</Badge>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-3">
@@ -191,22 +239,34 @@ const Classes = () => {
                         <Button variant="outline" size="sm" className="w-full"><Users className="h-3.5 w-3.5 mr-1.5" /> Manage Students</Button>
                       </DialogTrigger>
                       <DialogContent>
-                        <DialogHeader><DialogTitle>Enroll Students — {cls.name}</DialogTitle></DialogHeader>
+                        <DialogHeader><DialogTitle>Manage Students — {cls.name}</DialogTitle></DialogHeader>
                         <div className="space-y-2 max-h-64 overflow-auto">
-                          {students.map(s => {
-                            const isEnrolled = enrolled.some(e => e.student_id === s.user_id);
-                            return (
-                              <div key={s.user_id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/50">
-                                <span className="text-sm">{s.full_name || "Unnamed"}</span>
-                                {isEnrolled ? (
-                                  <Badge variant="secondary" className="text-xs">Enrolled</Badge>
-                                ) : (
-                                  <Button size="sm" variant="outline" onClick={() => enrollStudent.mutate(s.user_id)}>Enroll</Button>
-                                )}
-                              </div>
-                            );
-                          })}
-                          {students.length === 0 && <p className="text-sm text-muted-foreground text-center py-4">No students found</p>}
+                          {/* Enrolled students with remove button */}
+                          {enrolled.length > 0 && (
+                            <div className="space-y-1 mb-3">
+                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Enrolled</p>
+                              {enrolled.map(e => (
+                                <div key={e.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/50">
+                                  <span className="text-sm">{profileMap[e.student_id] || "Unnamed"}</span>
+                                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-7 px-2"
+                                    onClick={() => unenrollStudent.mutate(e.id)}>
+                                    <UserMinus className="h-3.5 w-3.5 mr-1" /> Remove
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {/* Available students to enroll */}
+                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Available</p>
+                          {students.filter(s => !enrolled.some(e => e.student_id === s.user_id)).map(s => (
+                            <div key={s.user_id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/50">
+                              <span className="text-sm">{s.full_name || "Unnamed"}</span>
+                              <Button size="sm" variant="outline" onClick={() => enrollStudent.mutate(s.user_id)}>Enroll</Button>
+                            </div>
+                          ))}
+                          {students.filter(s => !enrolled.some(e => e.student_id === s.user_id)).length === 0 && enrolled.length === 0 && (
+                            <p className="text-sm text-muted-foreground text-center py-4">No students found</p>
+                          )}
                         </div>
                       </DialogContent>
                     </Dialog>

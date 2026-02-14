@@ -24,6 +24,7 @@ export type Database = {
           notes: string | null
           status: string
           student_id: string
+          timetable_entry_id: string | null
         }
         Insert: {
           class_id: string
@@ -34,6 +35,7 @@ export type Database = {
           notes?: string | null
           status?: string
           student_id: string
+          timetable_entry_id?: string | null
         }
         Update: {
           class_id?: string
@@ -44,6 +46,7 @@ export type Database = {
           notes?: string | null
           status?: string
           student_id?: string
+          timetable_entry_id?: string | null
         }
         Relationships: [
           {
@@ -51,6 +54,13 @@ export type Database = {
             columns: ["class_id"]
             isOneToOne: false
             referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "attendance_timetable_entry_id_fkey"
+            columns: ["timetable_entry_id"]
+            isOneToOne: false
+            referencedRelation: "timetable_entries"
             referencedColumns: ["id"]
           },
         ]
@@ -127,6 +137,7 @@ export type Database = {
           notes: string | null
           score: number
           student_id: string
+          timetable_entry_id: string | null
           title: string
           updated_at: string
         }
@@ -139,6 +150,7 @@ export type Database = {
           notes?: string | null
           score: number
           student_id: string
+          timetable_entry_id?: string | null
           title: string
           updated_at?: string
         }
@@ -151,6 +163,7 @@ export type Database = {
           notes?: string | null
           score?: number
           student_id?: string
+          timetable_entry_id?: string | null
           title?: string
           updated_at?: string
         }
@@ -160,6 +173,13 @@ export type Database = {
             columns: ["class_id"]
             isOneToOne: false
             referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grades_timetable_entry_id_fkey"
+            columns: ["timetable_entry_id"]
+            isOneToOne: false
+            referencedRelation: "timetable_entries"
             referencedColumns: ["id"]
           },
         ]

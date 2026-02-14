@@ -2,24 +2,24 @@ import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Calendar } from "lucide-react";
+import { Plus, Pencil } from "lucide-react";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-const TIME_SLOTS = [
-  "08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00",
-];
+const TIME_SLOTS = ["08:00", "09:00", "10:00", "11:00", "12:00", "13:00", "14:00", "15:00", "16:00", "17:00"];
 
 const Timetable = () => {
   const { user, isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ class_id: "", day_of_week: "0", start_time: "08:00", end_time: "09:00", room: "" });
 
   const { data: entries = [] } = useQuery({
@@ -50,24 +50,41 @@ const Timetable = () => {
   const classMap = Object.fromEntries(classes.map(c => [c.id, c]));
   const profileMap = Object.fromEntries(profiles.map(p => [p.user_id, p.full_name]));
 
+  const invalidate = () => {
+    queryClient.invalidateQueries({ queryKey: ["timetable"] });
+    queryClient.invalidateQueries({ queryKey: ["timetable-count"] });
+  };
+
   const createEntry = useMutation({
     mutationFn: async () => {
       const { error } = await supabase.from("timetable_entries").insert({
-        class_id: form.class_id,
-        day_of_week: parseInt(form.day_of_week),
-        start_time: form.start_time,
-        end_time: form.end_time,
-        room: form.room,
-        created_by: user!.id,
+        class_id: form.class_id, day_of_week: parseInt(form.day_of_week),
+        start_time: form.start_time, end_time: form.end_time, room: form.room, created_by: user!.id,
       });
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["timetable"] });
-      queryClient.invalidateQueries({ queryKey: ["timetable-count"] });
+      invalidate();
       setForm({ class_id: "", day_of_week: "0", start_time: "08:00", end_time: "09:00", room: "" });
       setOpen(false);
       toast.success("Entry added!");
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const updateEntry = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase.from("timetable_entries").update({
+        class_id: form.class_id, day_of_week: parseInt(form.day_of_week),
+        start_time: form.start_time, end_time: form.end_time, room: form.room,
+      }).eq("id", editingId!);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidate();
+      setEditOpen(false);
+      setEditingId(null);
+      toast.success("Entry updated!");
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -77,25 +94,64 @@ const Timetable = () => {
       const { error } = await supabase.from("timetable_entries").delete().eq("id", id);
       if (error) throw error;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["timetable"] });
-      queryClient.invalidateQueries({ queryKey: ["timetable-count"] });
-      toast.success("Entry removed!");
-    },
+    onSuccess: () => { invalidate(); toast.success("Entry removed!"); },
     onError: (err: any) => toast.error(err.message),
   });
 
+  const openEdit = (entry: any) => {
+    setEditingId(entry.id);
+    setForm({
+      class_id: entry.class_id, day_of_week: String(entry.day_of_week),
+      start_time: entry.start_time, end_time: entry.end_time, room: entry.room || "",
+    });
+    setEditOpen(true);
+  };
+
   const getEntriesForSlot = (day: number, time: string) =>
     entries.filter(e => e.day_of_week === day && e.start_time <= time && e.end_time > time);
+
+  const entryForm = (onSubmit: () => void, isPending: boolean, label: string) => (
+    <form onSubmit={e => { e.preventDefault(); onSubmit(); }} className="space-y-4">
+      <div className="space-y-2">
+        <Label>Class</Label>
+        <Select value={form.class_id} onValueChange={v => setForm(f => ({ ...f, class_id: v }))}>
+          <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
+          <SelectContent>{classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+      <div className="space-y-2">
+        <Label>Day</Label>
+        <Select value={form.day_of_week} onValueChange={v => setForm(f => ({ ...f, day_of_week: v }))}>
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>{DAYS.map((d, i) => <SelectItem key={i} value={String(i)}>{d}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label>Start Time</Label>
+          <Input type="time" value={form.start_time} onChange={e => setForm(f => ({ ...f, start_time: e.target.value }))} required />
+        </div>
+        <div className="space-y-2">
+          <Label>End Time</Label>
+          <Input type="time" value={form.end_time} onChange={e => setForm(f => ({ ...f, end_time: e.target.value }))} required />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label>Room</Label>
+        <Input value={form.room} onChange={e => setForm(f => ({ ...f, room: e.target.value }))} placeholder="e.g. Room 101" />
+      </div>
+      <Button type="submit" className="w-full" disabled={isPending || !form.class_id}>
+        {isPending ? "Saving..." : label}
+      </Button>
+    </form>
+  );
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Weekly Timetable</h1>
-          <p className="text-muted-foreground mt-1">
-            {isAdmin ? "Manage class schedules" : "View your weekly schedule"}
-          </p>
+          <p className="text-muted-foreground mt-1">{isAdmin ? "Manage class schedules" : "View your weekly schedule"}</p>
         </div>
         {isAdmin && (
           <Dialog open={open} onOpenChange={setOpen}>
@@ -104,47 +160,19 @@ const Timetable = () => {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>Add Timetable Entry</DialogTitle></DialogHeader>
-              <form onSubmit={e => { e.preventDefault(); createEntry.mutate(); }} className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Class</Label>
-                  <Select value={form.class_id} onValueChange={v => setForm(f => ({ ...f, class_id: v }))}>
-                    <SelectTrigger><SelectValue placeholder="Select class" /></SelectTrigger>
-                    <SelectContent>
-                      {classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label>Day</Label>
-                  <Select value={form.day_of_week} onValueChange={v => setForm(f => ({ ...f, day_of_week: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {DAYS.map((d, i) => <SelectItem key={i} value={String(i)}>{d}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label>Start Time</Label>
-                    <Input type="time" value={form.start_time} onChange={e => setForm(f => ({ ...f, start_time: e.target.value }))} required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>End Time</Label>
-                    <Input type="time" value={form.end_time} onChange={e => setForm(f => ({ ...f, end_time: e.target.value }))} required />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Room</Label>
-                  <Input value={form.room} onChange={e => setForm(f => ({ ...f, room: e.target.value }))} placeholder="e.g. Room 101" />
-                </div>
-                <Button type="submit" className="w-full" disabled={createEntry.isPending || !form.class_id}>
-                  {createEntry.isPending ? "Adding..." : "Add Entry"}
-                </Button>
-              </form>
+              {entryForm(() => createEntry.mutate(), createEntry.isPending, "Add Entry")}
             </DialogContent>
           </Dialog>
         )}
       </div>
+
+      {/* Edit dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit Timetable Entry</DialogTitle></DialogHeader>
+          {entryForm(() => updateEntry.mutate(), updateEntry.isPending, "Save Changes")}
+        </DialogContent>
+      </Dialog>
 
       <Card>
         <CardContent className="p-0 overflow-auto">
@@ -173,10 +201,12 @@ const Timetable = () => {
                               {cls?.teacher_id && <p className="opacity-70">{profileMap[cls.teacher_id] ?? ""}</p>}
                               {entry.room && <p className="opacity-60">{entry.room}</p>}
                               {isAdmin && (
-                                <button
-                                  onClick={() => deleteEntry.mutate(entry.id)}
-                                  className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 text-destructive text-xs hover:bg-destructive/10 rounded px-1"
-                                >×</button>
+                                <div className="absolute top-1 right-1 opacity-0 group-hover:opacity-100 flex gap-0.5">
+                                  <button onClick={() => openEdit(entry)} className="text-primary text-xs hover:bg-primary/10 rounded px-1">
+                                    <Pencil className="h-3 w-3" />
+                                  </button>
+                                  <button onClick={() => deleteEntry.mutate(entry.id)} className="text-destructive text-xs hover:bg-destructive/10 rounded px-1">×</button>
+                                </div>
                               )}
                             </div>
                           );
