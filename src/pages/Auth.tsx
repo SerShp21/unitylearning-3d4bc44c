@@ -8,31 +8,17 @@ import { toast } from "sonner";
 import { GraduationCap } from "lucide-react";
 
 const Auth = () => {
-  const [isLogin, setIsLogin] = useState(true);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [fullName, setFullName] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
-      if (isLogin) {
-        const { error } = await supabase.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-        toast.success("Welcome back!");
-      } else {
-        const { error } = await supabase.auth.signUp({
-          email, password,
-          options: {
-            data: { full_name: fullName },
-            emailRedirectTo: window.location.origin,
-          },
-        });
-        if (error) throw error;
-        toast.success("Check your email to confirm your account!");
-      }
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+      toast.success("Welcome back!");
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -48,16 +34,10 @@ const Auth = () => {
             <GraduationCap className="h-7 w-7 text-primary-foreground" />
           </div>
           <CardTitle className="text-2xl">UnityClass</CardTitle>
-          <CardDescription>{isLogin ? "Sign in to your account" : "Create a new account"}</CardDescription>
+          <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
-            {!isLogin && (
-              <div className="space-y-2">
-                <Label htmlFor="name">Full Name</Label>
-                <Input id="name" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="John Doe" required />
-              </div>
-            )}
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input id="email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" required />
@@ -67,15 +47,12 @@ const Auth = () => {
               <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" required minLength={6} />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Loading..." : isLogin ? "Sign In" : "Sign Up"}
+              {loading ? "Loading..." : "Sign In"}
             </Button>
           </form>
-          <div className="mt-4 text-center text-sm text-muted-foreground">
-            {isLogin ? "Don't have an account?" : "Already have an account?"}{" "}
-            <button onClick={() => setIsLogin(!isLogin)} className="text-primary underline hover:no-underline">
-              {isLogin ? "Sign up" : "Sign in"}
-            </button>
-          </div>
+          <p className="mt-4 text-center text-xs text-muted-foreground">
+            Contact your administrator to get an account.
+          </p>
         </CardContent>
       </Card>
     </div>

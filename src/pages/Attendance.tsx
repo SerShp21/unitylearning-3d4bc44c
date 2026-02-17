@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, Trash2 } from "lucide-react";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const STATUS_OPTIONS = ["present", "absent", "late", "excused"] as const;
@@ -22,7 +22,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const Attendance = () => {
-  const { user, isAdmin, role } = useAuth();
+  const { user, isAdmin, isSuperAdmin, role } = useAuth();
   const queryClient = useQueryClient();
   const [selectedClass, setSelectedClass] = useState<string>("");
   const [selectedEntry, setSelectedEntry] = useState<string>("");
@@ -120,6 +120,18 @@ const Attendance = () => {
     onError: (err: any) => toast.error(err.message),
   });
 
+  const deleteAttendance = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("attendance").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["attendance"] });
+      toast.success("Attendance record deleted!");
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
   const displayAttendance = role === "student"
     ? attendance.filter(a => a.student_id === user?.id)
     : attendance;
@@ -195,7 +207,7 @@ const Attendance = () => {
                           </Badge>
                         </TableCell>
                         <TableCell>
-                          <div className="flex gap-1.5 flex-wrap">
+                          <div className="flex gap-1.5 flex-wrap items-center">
                             {STATUS_OPTIONS.map(status => (
                               <Button
                                 key={status}
@@ -208,6 +220,12 @@ const Attendance = () => {
                                 {status}
                               </Button>
                             ))}
+                            {isSuperAdmin && record && (
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive"
+                                onClick={() => deleteAttendance.mutate(record.id)}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

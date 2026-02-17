@@ -11,10 +11,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, BookOpen, User, Users, Pencil, UserMinus } from "lucide-react";
+import { Plus, BookOpen, User, Users, Pencil, UserMinus, Trash2 } from "lucide-react";
 
 const Classes = () => {
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, isSuperAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [enrollOpen, setEnrollOpen] = useState(false);
@@ -82,7 +82,6 @@ const Classes = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["classes"] });
-      queryClient.invalidateQueries({ queryKey: ["class-count"] });
       setForm({ name: "", subject: "", description: "", teacher_id: "" });
       setOpen(false);
       toast.success("Class created!");
@@ -99,6 +98,18 @@ const Classes = () => {
       queryClient.invalidateQueries({ queryKey: ["classes"] });
       setRenameOpen(false);
       toast.success("Class renamed!");
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const deleteClass = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("classes").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["classes"] });
+      toast.success("Class deleted!");
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -138,60 +149,34 @@ const Classes = () => {
         </div>
         {isAdmin && (
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild>
-              <Button><Plus className="h-4 w-4 mr-2" /> Create Class</Button>
-            </DialogTrigger>
+            <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" /> Create Class</Button></DialogTrigger>
             <DialogContent>
               <DialogHeader><DialogTitle>Create New Class</DialogTitle></DialogHeader>
               <form onSubmit={e => { e.preventDefault(); createClass.mutate(); }} className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Class Name</Label>
-                  <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required />
-                </div>
-                <div className="space-y-2">
-                  <Label>Subject</Label>
-                  <Input value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} required />
-                </div>
-                <div className="space-y-2">
-                  <Label>Description</Label>
-                  <Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
-                </div>
+                <div className="space-y-2"><Label>Class Name</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required /></div>
+                <div className="space-y-2"><Label>Subject</Label><Input value={form.subject} onChange={e => setForm(f => ({ ...f, subject: e.target.value }))} required /></div>
+                <div className="space-y-2"><Label>Description</Label><Textarea value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} /></div>
                 <div className="space-y-2">
                   <Label>Assign Teacher</Label>
                   <Select value={form.teacher_id} onValueChange={v => setForm(f => ({ ...f, teacher_id: v }))}>
                     <SelectTrigger><SelectValue placeholder="Select teacher" /></SelectTrigger>
-                    <SelectContent>
-                      {teachers.map(t => (
-                        <SelectItem key={t.user_id} value={t.user_id}>{t.full_name || "Unnamed"}</SelectItem>
-                      ))}
-                    </SelectContent>
+                    <SelectContent>{teachers.map(t => <SelectItem key={t.user_id} value={t.user_id}>{t.full_name || "Unnamed"}</SelectItem>)}</SelectContent>
                   </Select>
                 </div>
-                <Button type="submit" className="w-full" disabled={createClass.isPending}>
-                  {createClass.isPending ? "Creating..." : "Create Class"}
-                </Button>
+                <Button type="submit" className="w-full" disabled={createClass.isPending}>{createClass.isPending ? "Creating..." : "Create Class"}</Button>
               </form>
             </DialogContent>
           </Dialog>
         )}
       </div>
 
-      {/* Rename dialog */}
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
         <DialogContent>
           <DialogHeader><DialogTitle>Rename Class</DialogTitle></DialogHeader>
           <form onSubmit={e => { e.preventDefault(); renameClass.mutate(); }} className="space-y-4">
-            <div className="space-y-2">
-              <Label>Class Name</Label>
-              <Input value={renameForm.name} onChange={e => setRenameForm(f => ({ ...f, name: e.target.value }))} required />
-            </div>
-            <div className="space-y-2">
-              <Label>Subject</Label>
-              <Input value={renameForm.subject} onChange={e => setRenameForm(f => ({ ...f, subject: e.target.value }))} required />
-            </div>
-            <Button type="submit" className="w-full" disabled={renameClass.isPending}>
-              {renameClass.isPending ? "Saving..." : "Save Changes"}
-            </Button>
+            <div className="space-y-2"><Label>Class Name</Label><Input value={renameForm.name} onChange={e => setRenameForm(f => ({ ...f, name: e.target.value }))} required /></div>
+            <div className="space-y-2"><Label>Subject</Label><Input value={renameForm.subject} onChange={e => setRenameForm(f => ({ ...f, subject: e.target.value }))} required /></div>
+            <Button type="submit" className="w-full" disabled={renameClass.isPending}>{renameClass.isPending ? "Saving..." : "Save Changes"}</Button>
           </form>
         </DialogContent>
       </Dialog>
@@ -213,7 +198,7 @@ const Classes = () => {
                       <CardTitle className="text-lg">{cls.name}</CardTitle>
                       <CardDescription>{cls.subject}</CardDescription>
                     </div>
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-1">
                       {isAdmin && (
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
                           setSelectedClassId(cls.id);
@@ -221,6 +206,12 @@ const Classes = () => {
                           setRenameOpen(true);
                         }}>
                           <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      )}
+                      {isSuperAdmin && (
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive"
+                          onClick={() => { if (confirm(`Delete class "${cls.name}"?`)) deleteClass.mutate(cls.id); }}>
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       )}
                       <Badge variant="secondary">{enrolled.length} students</Badge>
@@ -241,7 +232,6 @@ const Classes = () => {
                       <DialogContent>
                         <DialogHeader><DialogTitle>Manage Students — {cls.name}</DialogTitle></DialogHeader>
                         <div className="space-y-2 max-h-64 overflow-auto">
-                          {/* Enrolled students with remove button */}
                           {enrolled.length > 0 && (
                             <div className="space-y-1 mb-3">
                               <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Enrolled</p>
@@ -256,7 +246,6 @@ const Classes = () => {
                               ))}
                             </div>
                           )}
-                          {/* Available students to enroll */}
                           <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Available</p>
                           {students.filter(s => !enrolled.some(e => e.student_id === s.user_id)).map(s => (
                             <div key={s.user_id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/50">

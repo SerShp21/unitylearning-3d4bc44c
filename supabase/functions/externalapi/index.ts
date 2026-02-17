@@ -8,20 +8,10 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const apiKey = req.headers.get("x-api-key");
-  const expectedKey = Deno.env.get("UNITYCLASS_API_KEY");
-  if (!apiKey || apiKey !== expectedKey) {
-    return new Response(JSON.stringify({ error: "Invalid or missing API key" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
   const { createClient } = await import("https://esm.sh/@supabase/supabase-js@2");
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-  );
+  const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+  const supabase = createClient(supabaseUrl, serviceRoleKey);
 
   const url = new URL(req.url);
   const resource = url.searchParams.get("resource");
@@ -32,6 +22,53 @@ Deno.serve(async (req) => {
       status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
+
+  // For create_user, authenticate via JWT (super_admin only)
+  if (resource === "create_user" && method === "POST") {
+    const authHeader = req.headers.get("authorization");
+    if (!authHeader) return json({ error: "Missing authorization" }, 401);
+
+    const token = authHeader.replace("Bearer ", "");
+    const anonClient = createClient(supabaseUrl, Deno.env.get("SUPABASE_ANON_KEY")!);
+    const { data: { user: caller }, error: authErr } = await anonClient.auth.getUser(token);
+    if (authErr || !caller) return json({ error: "Unauthorized" }, 401);
+
+    // Check super_admin role
+    const { data: roleData } = await supabase.from("user_roles").select("role").eq("user_id", caller.id).maybeSingle();
+    if (roleData?.role !== "super_admin") return json({ error: "Only super_admin can create users" }, 403);
+
+    const body = await req.json();
+    const { email, password, full_name, role, face_id } = body;
+    if (!email || !password) return json({ error: "email and password required" }, 400);
+
+    // Create auth user
+    const { data: newUser, error: createErr } = await supabase.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { full_name: full_name || "" },
+    });
+    if (createErr) return json({ error: createErr.message }, 400);
+
+    // Update profile face_id if provided
+    if (face_id) {
+      await supabase.from("profiles").update({ face_id }).eq("user_id", newUser.user.id);
+    }
+
+    // Update role if not student (trigger sets student by default)
+    if (role && role !== "student") {
+      await supabase.from("user_roles").update({ role }).eq("user_id", newUser.user.id);
+    }
+
+    return json({ data: { id: newUser.user.id, email } }, 201);
+  }
+
+  // For all other endpoints, require API key
+  const apiKey = req.headers.get("x-api-key");
+  const expectedKey = Deno.env.get("UNITYCLASS_API_KEY");
+  if (!apiKey || apiKey !== expectedKey) {
+    return json({ error: "Invalid or missing API key" }, 401);
+  }
 
   const body = method !== "GET" ? await req.json().catch(() => ({})) : {};
 
@@ -155,6 +192,16 @@ Deno.serve(async (req) => {
           if (error) throw error;
           return json({ data });
         }
+        case "profiles": {
+          const { data, error } = await supabase.from("profiles").update(body).eq("user_id", id).select().single();
+          if (error) throw error;
+          return json({ data });
+        }
+        case "user_roles": {
+          const { data, error } = await supabase.from("user_roles").update(body).eq("user_id", id).select().single();
+          if (error) throw error;
+          return json({ data });
+        }
         default:
           return json({ error: "PUT/PATCH not supported for this resource" }, 400);
       }
@@ -183,7 +230,6 @@ Deno.serve(async (req) => {
             const { error } = await supabase.from("class_enrollments").delete().eq("id", id);
             if (error) throw error;
           } else if (studentId) {
-            // Expel: remove student from all classes
             const { error } = await supabase.from("class_enrollments").delete().eq("student_id", studentId);
             if (error) throw error;
           } else {
@@ -200,6 +246,18 @@ Deno.serve(async (req) => {
         case "attendance": {
           if (!id) return json({ error: "id required" }, 400);
           const { error } = await supabase.from("attendance").delete().eq("id", id);
+          if (error) throw error;
+          return json({ success: true });
+        }
+        case "users": {
+          if (!id) return json({ error: "id (user_id) required" }, 400);
+          // Remove all related data then delete auth user
+          await supabase.from("class_enrollments").delete().eq("student_id", id);
+          await supabase.from("attendance").delete().eq("student_id", id);
+          await supabase.from("grades").delete().eq("student_id", id);
+          await supabase.from("user_roles").delete().eq("user_id", id);
+          await supabase.from("profiles").delete().eq("user_id", id);
+          const { error } = await supabase.auth.admin.deleteUser(id);
           if (error) throw error;
           return json({ success: true });
         }
