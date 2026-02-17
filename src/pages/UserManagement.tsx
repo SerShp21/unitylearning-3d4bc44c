@@ -7,9 +7,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Search, Shield, UserX } from "lucide-react";
+import { Search, Shield, UserX, Plus, Pencil, ScanFace, Trash2 } from "lucide-react";
 import type { Enums } from "@/integrations/supabase/types";
 
 type AppRole = Enums<"app_role">;
@@ -20,6 +21,9 @@ const UserManagement = () => {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState("");
   const [expelTarget, setExpelTarget] = useState<{ user_id: string; full_name: string } | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createForm, setCreateForm] = useState({ email: "", password: "", full_name: "", role: "student" as AppRole, face_id: "" });
+  const [editFaceTarget, setEditFaceTarget] = useState<{ user_id: string; full_name: string; face_id: string } | null>(null);
 
   const { data: users = [] } = useQuery({
     queryKey: ["all-users"],
@@ -55,7 +59,6 @@ const UserManagement = () => {
 
   const expelStudent = useMutation({
     mutationFn: async (userId: string) => {
-      // Remove from all class enrollments
       const { error } = await supabase.from("class_enrollments").delete().eq("student_id", userId);
       if (error) throw error;
     },
@@ -64,6 +67,66 @@ const UserManagement = () => {
       queryClient.invalidateQueries({ queryKey: ["all-users"] });
       setExpelTarget(null);
       toast.success("Student expelled from all classes!");
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const createUser = useMutation({
+    mutationFn: async () => {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/externalapi?resource=create_user`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
+        },
+        body: JSON.stringify({
+          email: createForm.email,
+          password: createForm.password,
+          full_name: createForm.full_name,
+          role: createForm.role,
+          face_id: createForm.face_id || null,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Failed to create user");
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["all-users"] });
+      setCreateForm({ email: "", password: "", full_name: "", role: "student", face_id: "" });
+      setCreateOpen(false);
+      toast.success("User created successfully!");
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const updateFaceId = useMutation({
+    mutationFn: async ({ userId, faceId }: { userId: string; faceId: string }) => {
+      const { error } = await supabase.from("profiles").update({ face_id: faceId || null }).eq("user_id", userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["all-users"] });
+      setEditFaceTarget(null);
+      toast.success("Face ID updated!");
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const deleteUser = useMutation({
+    mutationFn: async (userId: string) => {
+      // Delete enrollments, attendance, grades, then profile and role
+      await supabase.from("class_enrollments").delete().eq("student_id", userId);
+      await supabase.from("attendance").delete().eq("student_id", userId);
+      await supabase.from("grades").delete().eq("student_id", userId);
+      const { error: roleErr } = await supabase.from("user_roles").delete().eq("user_id", userId);
+      if (roleErr) throw roleErr;
+      const { error: profErr } = await supabase.from("profiles").delete().eq("user_id", userId);
+      if (profErr) throw profErr;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["all-users"] });
+      toast.success("User removed from system!");
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -89,9 +152,51 @@ const UserManagement = () => {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">User Management</h1>
-        <p className="text-muted-foreground mt-1">View all users, change roles, and expel students</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">User Management</h1>
+          <p className="text-muted-foreground mt-1">Manage users, roles, and Face IDs</p>
+        </div>
+        {isSuperAdmin && (
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+            <DialogTrigger asChild>
+              <Button><Plus className="h-4 w-4 mr-2" /> Add User</Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader><DialogTitle>Create New User</DialogTitle></DialogHeader>
+              <form onSubmit={e => { e.preventDefault(); createUser.mutate(); }} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Full Name</Label>
+                  <Input value={createForm.full_name} onChange={e => setCreateForm(f => ({ ...f, full_name: e.target.value }))} required />
+                </div>
+                <div className="space-y-2">
+                  <Label>Email</Label>
+                  <Input type="email" value={createForm.email} onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))} required />
+                </div>
+                <div className="space-y-2">
+                  <Label>Password</Label>
+                  <Input type="password" value={createForm.password} onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))} required minLength={6} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Role</Label>
+                  <Select value={createForm.role} onValueChange={(v: AppRole) => setCreateForm(f => ({ ...f, role: v }))}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {ROLES.map(r => <SelectItem key={r} value={r}>{r.replace("_", " ")}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Face ID (optional)</Label>
+                  <Input value={createForm.face_id} onChange={e => setCreateForm(f => ({ ...f, face_id: e.target.value }))} placeholder="Face identifier..." />
+                </div>
+                <Button type="submit" className="w-full" disabled={createUser.isPending}>
+                  {createUser.isPending ? "Creating..." : "Create User"}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       <div className="relative">
@@ -104,13 +209,30 @@ const UserManagement = () => {
         <DialogContent>
           <DialogHeader><DialogTitle>Expel Student</DialogTitle></DialogHeader>
           <p className="text-sm text-muted-foreground">
-            Are you sure you want to expel <strong>{expelTarget?.full_name}</strong> from all classes? This will remove all their enrollments.
+            Are you sure you want to expel <strong>{expelTarget?.full_name}</strong> from all classes?
           </p>
           <div className="flex gap-2 justify-end mt-4">
             <Button variant="outline" onClick={() => setExpelTarget(null)}>Cancel</Button>
             <Button variant="destructive" onClick={() => expelTarget && expelStudent.mutate(expelTarget.user_id)}
               disabled={expelStudent.isPending}>
               {expelStudent.isPending ? "Expelling..." : "Expel"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Face ID dialog */}
+      <Dialog open={!!editFaceTarget} onOpenChange={v => !v && setEditFaceTarget(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit Face ID — {editFaceTarget?.full_name}</DialogTitle></DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Face ID</Label>
+              <Input value={editFaceTarget?.face_id ?? ""} onChange={e => setEditFaceTarget(prev => prev ? { ...prev, face_id: e.target.value } : null)} placeholder="Face identifier..." />
+            </div>
+            <Button className="w-full" onClick={() => editFaceTarget && updateFaceId.mutate({ userId: editFaceTarget.user_id, faceId: editFaceTarget.face_id })}
+              disabled={updateFaceId.isPending}>
+              {updateFaceId.isPending ? "Saving..." : "Save Face ID"}
             </Button>
           </div>
         </DialogContent>
@@ -127,33 +249,51 @@ const UserManagement = () => {
                   </div>
                   <div>
                     <p className="font-medium text-sm">{user.full_name || "Unnamed"}</p>
-                    <Badge variant="outline" className={`text-[10px] mt-0.5 ${roleBadge(user.role)}`}>
-                      {user.role.replace("_", " ")}
-                    </Badge>
+                    <div className="flex items-center gap-1.5 mt-0.5">
+                      <Badge variant="outline" className={`text-[10px] ${roleBadge(user.role)}`}>
+                        {user.role.replace("_", " ")}
+                      </Badge>
+                      {(user as any).face_id && (
+                        <Badge variant="outline" className="text-[10px] bg-accent/10 text-accent border-accent/20">
+                          <ScanFace className="h-2.5 w-2.5 mr-0.5" /> Face ID
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {user.role === "student" && (
+                <div className="flex items-center gap-1.5">
+                  {isSuperAdmin && (
+                    <Button variant="ghost" size="sm" onClick={() => setEditFaceTarget({ user_id: user.user_id, full_name: user.full_name, face_id: (user as any).face_id || "" })}>
+                      <ScanFace className="h-3.5 w-3.5 mr-1" /> Face ID
+                    </Button>
+                  )}
+                  {user.role === "student" && isAdmin && (
                     <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive"
                       onClick={() => setExpelTarget({ user_id: user.user_id, full_name: user.full_name })}>
                       <UserX className="h-3.5 w-3.5 mr-1" /> Expel
                     </Button>
                   )}
                   {isSuperAdmin && (
-                    <Select
-                      value={user.role}
-                      onValueChange={(v: AppRole) => updateRole.mutate({ userId: user.user_id, roleId: user.role_id, newRole: v })}
-                    >
-                      <SelectTrigger className="w-40">
-                        <Shield className="h-3.5 w-3.5 mr-1.5" />
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {ROLES.map(r => (
-                          <SelectItem key={r} value={r}>{r.replace("_", " ")}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <>
+                      <Select
+                        value={user.role}
+                        onValueChange={(v: AppRole) => updateRole.mutate({ userId: user.user_id, roleId: user.role_id, newRole: v })}
+                      >
+                        <SelectTrigger className="w-36">
+                          <Shield className="h-3.5 w-3.5 mr-1.5" />
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ROLES.map(r => (
+                            <SelectItem key={r} value={r}>{r.replace("_", " ")}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive h-8 w-8"
+                        onClick={() => { if (confirm(`Delete user "${user.full_name}"? This removes all their data.`)) deleteUser.mutate(user.user_id); }}>
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
