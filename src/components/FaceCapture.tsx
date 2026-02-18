@@ -10,7 +10,7 @@ interface FaceCaptureProps {
   label?: string;
 }
 
-const MODELS_URL = "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights";
+const MODELS_URL = "https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights";
 
 export const FaceCapture = ({ onCapture, onCancel, label = "Capture Face" }: FaceCaptureProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
