@@ -46,6 +46,7 @@ export const FaceVerify = ({ storedDescriptor, onSuccess, onSkip, threshold = 0.
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 320, height: 240 } });
       streamRef.current = stream;
+      // Video is always in the DOM now, assign directly
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
@@ -102,16 +103,34 @@ export const FaceVerify = ({ storedDescriptor, onSuccess, onSkip, threshold = 0.
   return (
     <div className="flex flex-col items-center gap-4">
       <div className="relative w-80 h-60 bg-muted rounded-xl overflow-hidden border-2 border-border flex items-center justify-center">
+        {/* Always keep video in DOM so srcObject can be assigned immediately */}
+        <video
+          ref={videoRef}
+          className={`w-full h-full object-cover ${status === "verifying" ? "block" : "hidden"}`}
+          muted
+          playsInline
+        />
+        <canvas
+          ref={canvasRef}
+          className={`absolute inset-0 w-full h-full ${status === "verifying" ? "block" : "hidden"}`}
+          width={320}
+          height={240}
+        />
+
         {status === "loading" && (
           <div className="flex flex-col items-center gap-2 text-muted-foreground">
             <ScanFace className="h-10 w-10 animate-pulse" />
             <p className="text-sm">Loading face models...</p>
           </div>
         )}
-        {(status === "verifying") && (
+        {status === "ready" && (
+          <div className="flex flex-col items-center gap-2 text-muted-foreground">
+            <ScanFace className="h-10 w-10 animate-pulse" />
+            <p className="text-sm">Starting camera...</p>
+          </div>
+        )}
+        {status === "verifying" && (
           <>
-            <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
-            <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" width={320} height={240} />
             <div className={`absolute top-2 right-2 h-3 w-3 rounded-full ${detected ? "bg-primary" : "bg-secondary"} animate-pulse`} />
             <div className="absolute bottom-2 left-2 text-xs font-medium px-2 py-0.5 rounded-full bg-black/50 text-white">
               {detected ? "Comparing face..." : "Look at the camera"}

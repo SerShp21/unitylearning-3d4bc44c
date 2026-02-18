@@ -21,7 +21,7 @@ Deno.serve(async (req) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-  const email = "sexho1100@gmail.com";
+  const email = "serxho1100@gmail.com";
   const password = "qweiop1100";
   const full_name = "Super Admin";
 
