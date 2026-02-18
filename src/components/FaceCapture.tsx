@@ -43,16 +43,20 @@ export const FaceCapture = ({ onCapture, onCancel, label = "Capture Face" }: Fac
     return () => { cancelled = true; };
   }, []);
 
+  const attachStream = useCallback(() => {
+    if (videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+      videoRef.current.play().then(() => {
+        startDetectionLoop();
+      });
+    }
+  }, []);
+
   const startCamera = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: 320, height: 240 } });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
       setCapturing(true);
-      startDetectionLoop();
     } catch {
       toast.error("Could not access camera. Please allow camera access.");
     }
@@ -106,6 +110,12 @@ export const FaceCapture = ({ onCapture, onCancel, label = "Capture Face" }: Fac
     onCapture(descriptor);
     toast.success("Face captured successfully!");
   };
+
+  useEffect(() => {
+    if (capturing && streamRef.current) {
+      attachStream();
+    }
+  }, [capturing, attachStream]);
 
   useEffect(() => {
     return () => {
