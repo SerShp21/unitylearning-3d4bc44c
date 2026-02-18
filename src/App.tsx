@@ -18,9 +18,10 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { session, loading } = useAuth();
+  const { session, loading, hasFaceId } = useAuth();
   if (loading) return <div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>;
   if (!session) return <Navigate to="/auth" replace />;
+  if (!hasFaceId) return <Navigate to="/setup-face" replace />;
   return <AppLayout>{children}</AppLayout>;
 };
 
