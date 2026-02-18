@@ -10,7 +10,7 @@ interface FaceVerifyProps {
   threshold?: number;
 }
 
-const MODELS_URL = "https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights";
+const MODELS_URL = "/models";
 
 export const FaceVerify = ({ storedDescriptor, onSuccess, onSkip, threshold = 0.5 }: FaceVerifyProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
