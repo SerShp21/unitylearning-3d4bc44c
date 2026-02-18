@@ -14,14 +14,31 @@ const FaceSetup = () => {
     if (!user) return;
     setSaving(true);
     try {
-      const { error } = await supabase
+      // Check if profile exists
+      const { data: existing } = await supabase
         .from("profiles")
-        .update({ face_id: JSON.stringify(descriptor) })
-        .eq("user_id", user.id);
+        .select("id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      let error;
+      if (existing) {
+        ({ error } = await supabase
+          .from("profiles")
+          .update({ face_id: JSON.stringify(descriptor) })
+          .eq("user_id", user.id));
+      } else {
+        ({ error } = await supabase
+          .from("profiles")
+          .insert({
+            user_id: user.id,
+            full_name: user.email?.split("@")[0] ?? "User",
+            face_id: JSON.stringify(descriptor),
+          }));
+      }
 
       if (error) throw error;
       toast.success("Face ID set up successfully!");
-      // Reload to let AuthContext pick up the change
       window.location.href = "/";
     } catch (err: any) {
       toast.error(err.message || "Failed to save Face ID");

@@ -73,13 +73,14 @@ export const FaceCapture = ({ onCapture, onCancel, label = "Capture Face" }: Fac
   const startDetectionLoop = () => {
     if (detectionRef.current) clearInterval(detectionRef.current);
     detectionRef.current = setInterval(async () => {
-      if (!videoRef.current || !canvasRef.current) return;
+      if (!videoRef.current) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
       const detection = await faceapi
         .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
         .withFaceLandmarks(true);
       setDetected(!!detection);
 
-      const canvas = canvasRef.current;
       const ctx = canvas.getContext("2d");
       if (ctx) {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
