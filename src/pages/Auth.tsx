@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { GraduationCap } from "lucide-react";
+import { GraduationCap, ScanFace, ShieldCheck } from "lucide-react";
 import { FaceVerify } from "@/components/FaceVerify";
 
 type Step = "credentials" | "face";
@@ -16,7 +16,6 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<Step>("credentials");
   const [faceDescriptor, setFaceDescriptor] = useState<number[] | null>(null);
-  const [pendingSession, setPendingSession] = useState<{ userId: string; accessToken: string } | null>(null);
 
   const handleCredentials = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,12 +32,10 @@ const Auth = () => {
         .maybeSingle();
 
       if (profile?.face_id) {
-        // Has face enrolled → require face verification
-        // Sign out temporarily to block app access until face passes
+        // Has face enrolled → sign out and require face verification as step 2
         await supabase.auth.signOut();
         const descriptor = JSON.parse(profile.face_id) as number[];
         setFaceDescriptor(descriptor);
-        setPendingSession({ userId: data.user.id, accessToken: "" });
         setStep("face");
       } else {
         // No face enrolled → proceed normally
@@ -52,22 +49,19 @@ const Auth = () => {
   };
 
   const handleFaceSuccess = async () => {
-    // Face matched → sign back in
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      toast.success("Face verified! Welcome back!");
+      toast.success("Identity verified! Welcome back!");
     } catch {
       toast.error("Could not complete sign in. Please try again.");
-      setStep("credentials");
+      backToCredentials();
     }
   };
 
-  const handleFaceSkip = () => {
-    toast.error("Face verification required for this account. Please try again.");
+  const backToCredentials = () => {
     setStep("credentials");
     setFaceDescriptor(null);
-    setPendingSession(null);
   };
 
   return (
@@ -75,13 +69,34 @@ const Auth = () => {
       <Card className="w-full max-w-md shadow-xl border-0">
         <CardHeader className="text-center space-y-3">
           <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary">
-            <GraduationCap className="h-7 w-7 text-primary-foreground" />
+            {step === "face" ? (
+              <ScanFace className="h-7 w-7 text-primary-foreground" />
+            ) : (
+              <GraduationCap className="h-7 w-7 text-primary-foreground" />
+            )}
           </div>
           <CardTitle className="text-2xl">UnityClass</CardTitle>
-          <CardDescription>
-            {step === "credentials" ? "Sign in to your account" : "Step 2: Face Verification"}
-          </CardDescription>
+
+          {step === "credentials" ? (
+            <CardDescription>Sign in to your account</CardDescription>
+          ) : (
+            <div className="space-y-1">
+              <div className="flex items-center justify-center gap-2 text-sm font-medium">
+                <span className="flex items-center gap-1 text-muted-foreground line-through">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-muted text-xs font-bold">1</span>
+                  Credentials
+                </span>
+                <span className="text-muted-foreground">→</span>
+                <span className="flex items-center gap-1 text-primary font-semibold">
+                  <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">2</span>
+                  Face ID
+                </span>
+              </div>
+              <CardDescription>Look at your camera to verify your identity</CardDescription>
+            </div>
+          )}
         </CardHeader>
+
         <CardContent>
           {step === "credentials" ? (
             <form onSubmit={handleCredentials} className="space-y-4">
@@ -117,27 +132,31 @@ const Auth = () => {
             </form>
           ) : (
             <div className="space-y-4">
-              <p className="text-sm text-muted-foreground text-center">
-                Your account has face verification enabled. Please look at your camera to confirm your identity.
-              </p>
+              <div className="rounded-lg border border-border bg-muted/40 px-4 py-3 flex items-start gap-3">
+                <ShieldCheck className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                <p className="text-xs text-muted-foreground">
+                  Your account requires Face ID verification. Please look directly at your camera to confirm your identity.
+                </p>
+              </div>
+
               {faceDescriptor && (
                 <FaceVerify
                   storedDescriptor={faceDescriptor}
                   onSuccess={handleFaceSuccess}
-                  onSkip={handleFaceSkip}
+                  onSkip={() => {
+                    toast.error("Face verification is required. Please try again.");
+                    backToCredentials();
+                  }}
                   threshold={0.5}
                 />
               )}
+
               <Button
                 variant="ghost"
-                className="w-full text-xs"
-                onClick={() => {
-                  setStep("credentials");
-                  setFaceDescriptor(null);
-                  setPendingSession(null);
-                }}
+                className="w-full text-xs text-muted-foreground"
+                onClick={backToCredentials}
               >
-                ← Back to login
+                ← Use a different account
               </Button>
             </div>
           )}
