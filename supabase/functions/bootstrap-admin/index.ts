@@ -22,7 +22,7 @@ Deno.serve(async (req) => {
   const supabase = createClient(supabaseUrl, serviceRoleKey);
 
   const email = "serxho1100@gmail.com";
-  const password = "qweiop1100";
+  const password = "qweiop11100";
   const full_name = "Serxho Vasili";
 
   const json = (data: unknown, status = 200) =>

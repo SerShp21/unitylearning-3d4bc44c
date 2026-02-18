@@ -14,11 +14,12 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   isAdmin: boolean;
   isSuperAdmin: boolean;
+  hasFaceId: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
   session: null, user: null, role: null, profile: null,
-  loading: true, signOut: async () => {}, isAdmin: false, isSuperAdmin: false,
+  loading: true, signOut: async () => {}, isAdmin: false, isSuperAdmin: false, hasFaceId: false,
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -29,15 +30,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [role, setRole] = useState<AppRole | null>(null);
   const [profile, setProfile] = useState<{ full_name: string; avatar_url: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hasFaceId, setHasFaceId] = useState(false);
 
   const fetchUserData = async (userId: string) => {
     try {
       const [{ data: roleData }, { data: profileData }] = await Promise.all([
         supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
-        supabase.from("profiles").select("full_name, avatar_url").eq("user_id", userId).maybeSingle(),
+        supabase.from("profiles").select("full_name, avatar_url, face_id").eq("user_id", userId).maybeSingle(),
       ]);
       setRole(roleData?.role ?? "student");
-      if (profileData) setProfile(profileData);
+      if (profileData) {
+        setProfile({ full_name: profileData.full_name, avatar_url: profileData.avatar_url });
+        setHasFaceId(!!profileData.face_id);
+      }
     } catch (err) {
       console.error("Error fetching user data:", err);
       setRole("student");
@@ -83,7 +88,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isSuperAdmin = role === "super_admin";
 
   return (
-    <AuthContext.Provider value={{ session, user, role, profile, loading, signOut, isAdmin, isSuperAdmin }}>
+    <AuthContext.Provider value={{ session, user, role, profile, loading, signOut, isAdmin, isSuperAdmin, hasFaceId }}>
       {children}
     </AuthContext.Provider>
   );
