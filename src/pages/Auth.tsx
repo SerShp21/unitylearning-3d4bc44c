@@ -7,10 +7,12 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { GraduationCap, ScanFace, ShieldCheck } from "lucide-react";
 import { FaceVerify } from "@/components/FaceVerify";
+import { useAuth } from "@/contexts/AuthContext";
 
 type Step = "credentials" | "face";
 
 const Auth = () => {
+  const { setFaceVerificationPending } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -21,8 +23,14 @@ const Auth = () => {
     e.preventDefault();
     setLoading(true);
     try {
+      // Signal that we're doing a face check — prevents AuthRoute from redirecting
+      setFaceVerificationPending(true);
+
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      if (error) {
+        setFaceVerificationPending(false);
+        throw error;
+      }
 
       // Check if this user has a face_id enrolled
       const { data: profile } = await supabase
@@ -37,11 +45,14 @@ const Auth = () => {
         const descriptor = JSON.parse(profile.face_id) as number[];
         setFaceDescriptor(descriptor);
         setStep("face");
+        // Keep faceVerificationPending=true until face is verified or cancelled
       } else {
         // No face enrolled → proceed normally
+        setFaceVerificationPending(false);
         toast.success("Welcome back!");
       }
     } catch (err: any) {
+      setFaceVerificationPending(false);
       toast.error(err.message);
     } finally {
       setLoading(false);
@@ -52,6 +63,7 @@ const Auth = () => {
     try {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
+      setFaceVerificationPending(false);
       toast.success("Identity verified! Welcome back!");
     } catch {
       toast.error("Could not complete sign in. Please try again.");
@@ -60,6 +72,7 @@ const Auth = () => {
   };
 
   const backToCredentials = () => {
+    setFaceVerificationPending(false);
     setStep("credentials");
     setFaceDescriptor(null);
   };

@@ -33,9 +33,10 @@ const FaceSetupRoute: React.FC = () => {
 };
 
 const AuthRoute: React.FC = () => {
-  const { session, loading } = useAuth();
+  const { session, loading, faceVerificationPending } = useAuth();
   if (loading) return null;
-  if (session) return <Navigate to="/" replace />;
+  // Don't redirect while face check is in progress (avoids flash + state loss)
+  if (session && !faceVerificationPending) return <Navigate to="/" replace />;
   return <Auth />;
 };
 
