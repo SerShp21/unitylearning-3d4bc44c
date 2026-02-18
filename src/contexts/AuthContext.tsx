@@ -15,11 +15,14 @@ interface AuthContextType {
   isAdmin: boolean;
   isSuperAdmin: boolean;
   hasFaceId: boolean;
+  faceVerificationPending: boolean;
+  setFaceVerificationPending: (v: boolean) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
   session: null, user: null, role: null, profile: null,
   loading: true, signOut: async () => {}, isAdmin: false, isSuperAdmin: false, hasFaceId: false,
+  faceVerificationPending: false, setFaceVerificationPending: () => {},
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -31,6 +34,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<{ full_name: string; avatar_url: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [hasFaceId, setHasFaceId] = useState(false);
+  const [faceVerificationPending, setFaceVerificationPending] = useState(false);
 
   const fetchUserData = async (userId: string) => {
     try {
@@ -57,7 +61,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        // Use setTimeout to avoid Supabase auth deadlock
         setTimeout(async () => {
           if (!mounted) return;
           await fetchUserData(session.user.id);
@@ -66,6 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         setRole(null);
         setProfile(null);
+        setHasFaceId(false);
         setLoading(false);
       }
     });
@@ -88,8 +92,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isSuperAdmin = role === "super_admin";
 
   return (
-    <AuthContext.Provider value={{ session, user, role, profile, loading, signOut, isAdmin, isSuperAdmin, hasFaceId }}>
+    <AuthContext.Provider value={{
+      session, user, role, profile, loading, signOut,
+      isAdmin, isSuperAdmin, hasFaceId,
+      faceVerificationPending, setFaceVerificationPending,
+    }}>
       {children}
     </AuthContext.Provider>
   );
 };
+
