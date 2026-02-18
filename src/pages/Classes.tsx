@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
 import { Plus, BookOpen, User, Users, Pencil, UserMinus, Trash2 } from "lucide-react";
+import { ClassBookInfo } from "@/components/ClassBookInfo";
 
 const Classes = () => {
   const { user, isAdmin, isSuperAdmin } = useAuth();
@@ -260,6 +261,13 @@ const Classes = () => {
                       </DialogContent>
                     </Dialog>
                   )}
+                  <ClassBookInfo
+                    classId={cls.id}
+                    bookIsbn={(cls as any).book_isbn ?? null}
+                    bookTitle={(cls as any).book_title ?? null}
+                    bookAuthor={(cls as any).book_author ?? null}
+                    bookCoverUrl={(cls as any).book_cover_url ?? null}
+                  />
                 </CardContent>
               </Card>
             );

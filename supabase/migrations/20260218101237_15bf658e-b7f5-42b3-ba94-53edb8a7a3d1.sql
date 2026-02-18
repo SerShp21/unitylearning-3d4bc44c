@@ -1,0 +1,5 @@
+ALTER TABLE public.classes
+  ADD COLUMN IF NOT EXISTS book_isbn TEXT,
+  ADD COLUMN IF NOT EXISTS book_title TEXT,
+  ADD COLUMN IF NOT EXISTS book_author TEXT,
+  ADD COLUMN IF NOT EXISTS book_cover_url TEXT;
