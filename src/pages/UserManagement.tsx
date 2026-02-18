@@ -10,8 +10,9 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Search, Shield, UserX, Plus, Pencil, ScanFace, Trash2 } from "lucide-react";
+import { Search, Shield, UserX, Plus, ScanFace, Trash2, CheckCircle2 } from "lucide-react";
 import type { Enums } from "@/integrations/supabase/types";
+import { FaceCapture } from "@/components/FaceCapture";
 
 type AppRole = Enums<"app_role">;
 const ROLES: AppRole[] = ["super_admin", "admin", "teacher", "student"];
@@ -22,8 +23,10 @@ const UserManagement = () => {
   const [search, setSearch] = useState("");
   const [expelTarget, setExpelTarget] = useState<{ user_id: string; full_name: string } | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [createForm, setCreateForm] = useState({ email: "", password: "", full_name: "", role: "student" as AppRole, face_id: "" });
-  const [editFaceTarget, setEditFaceTarget] = useState<{ user_id: string; full_name: string; face_id: string } | null>(null);
+  const [createForm, setCreateForm] = useState({ email: "", password: "", full_name: "", role: "student" as AppRole });
+  const [pendingFaceDescriptor, setPendingFaceDescriptor] = useState<number[] | null>(null);
+  const [editFaceTarget, setEditFaceTarget] = useState<{ user_id: string; full_name: string } | null>(null);
+  const [editFaceDescriptor, setEditFaceDescriptor] = useState<number[] | null>(null);
 
   const { data: users = [] } = useQuery({
     queryKey: ["all-users"],
@@ -84,7 +87,7 @@ const UserManagement = () => {
           password: createForm.password,
           full_name: createForm.full_name,
           role: createForm.role,
-          face_id: createForm.face_id || null,
+          face_id: pendingFaceDescriptor ? JSON.stringify(pendingFaceDescriptor) : null,
         }),
       });
       const data = await response.json();
@@ -93,21 +96,26 @@ const UserManagement = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["all-users"] });
-      setCreateForm({ email: "", password: "", full_name: "", role: "student", face_id: "" });
+      setCreateForm({ email: "", password: "", full_name: "", role: "student" });
+      setPendingFaceDescriptor(null);
       setCreateOpen(false);
       toast.success("User created successfully!");
     },
     onError: (err: any) => toast.error(err.message),
   });
 
-  const updateFaceId = useMutation({
-    mutationFn: async ({ userId, faceId }: { userId: string; faceId: string }) => {
-      const { error } = await supabase.from("profiles").update({ face_id: faceId || null }).eq("user_id", userId);
+  const saveFaceId = useMutation({
+    mutationFn: async ({ userId, descriptor }: { userId: string; descriptor: number[] | null }) => {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ face_id: descriptor ? JSON.stringify(descriptor) : null })
+        .eq("user_id", userId);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["all-users"] });
       setEditFaceTarget(null);
+      setEditFaceDescriptor(null);
       toast.success("Face ID updated!");
     },
     onError: (err: any) => toast.error(err.message),
@@ -115,7 +123,6 @@ const UserManagement = () => {
 
   const deleteUser = useMutation({
     mutationFn: async (userId: string) => {
-      // Delete enrollments, attendance, grades, then profile and role
       await supabase.from("class_enrollments").delete().eq("student_id", userId);
       await supabase.from("attendance").delete().eq("student_id", userId);
       await supabase.from("grades").delete().eq("student_id", userId);
@@ -158,11 +165,11 @@ const UserManagement = () => {
           <p className="text-muted-foreground mt-1">Manage users, roles, and Face IDs</p>
         </div>
         {isSuperAdmin && (
-          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+          <Dialog open={createOpen} onOpenChange={open => { setCreateOpen(open); if (!open) setPendingFaceDescriptor(null); }}>
             <DialogTrigger asChild>
               <Button><Plus className="h-4 w-4 mr-2" /> Add User</Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
               <DialogHeader><DialogTitle>Create New User</DialogTitle></DialogHeader>
               <form onSubmit={e => { e.preventDefault(); createUser.mutate(); }} className="space-y-4">
                 <div className="space-y-2">
@@ -186,10 +193,31 @@ const UserManagement = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label>Face ID (optional)</Label>
-                  <Input value={createForm.face_id} onChange={e => setCreateForm(f => ({ ...f, face_id: e.target.value }))} placeholder="Face identifier..." />
+
+                {/* Face ID capture */}
+                <div className="space-y-2 border rounded-lg p-4">
+                  <div className="flex items-center justify-between">
+                    <Label>Face ID (optional)</Label>
+                    {pendingFaceDescriptor && (
+                      <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
+                        <CheckCircle2 className="h-3.5 w-3.5" /> Captured
+                      </span>
+                    )}
+                  </div>
+                  {!pendingFaceDescriptor ? (
+                    <FaceCapture
+                      label="Capture Face"
+                      onCapture={desc => setPendingFaceDescriptor(desc)}
+                      onCancel={() => setPendingFaceDescriptor(null)}
+                    />
+                  ) : (
+                    <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
+                      <span className="text-sm text-muted-foreground">Face descriptor stored (128 points)</span>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => setPendingFaceDescriptor(null)}>Remove</Button>
+                    </div>
+                  )}
                 </div>
+
                 <Button type="submit" className="w-full" disabled={createUser.isPending}>
                   {createUser.isPending ? "Creating..." : "Create User"}
                 </Button>
@@ -222,18 +250,41 @@ const UserManagement = () => {
       </Dialog>
 
       {/* Edit Face ID dialog */}
-      <Dialog open={!!editFaceTarget} onOpenChange={v => !v && setEditFaceTarget(null)}>
-        <DialogContent>
-          <DialogHeader><DialogTitle>Edit Face ID — {editFaceTarget?.full_name}</DialogTitle></DialogHeader>
+      <Dialog open={!!editFaceTarget} onOpenChange={v => { if (!v) { setEditFaceTarget(null); setEditFaceDescriptor(null); }}}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Face ID — {editFaceTarget?.full_name}</DialogTitle></DialogHeader>
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label>Face ID</Label>
-              <Input value={editFaceTarget?.face_id ?? ""} onChange={e => setEditFaceTarget(prev => prev ? { ...prev, face_id: e.target.value } : null)} placeholder="Face identifier..." />
-            </div>
-            <Button className="w-full" onClick={() => editFaceTarget && updateFaceId.mutate({ userId: editFaceTarget.user_id, faceId: editFaceTarget.face_id })}
-              disabled={updateFaceId.isPending}>
-              {updateFaceId.isPending ? "Saving..." : "Save Face ID"}
-            </Button>
+            {!editFaceDescriptor ? (
+              <FaceCapture
+                label="Capture New Face"
+                onCapture={desc => setEditFaceDescriptor(desc)}
+              />
+            ) : (
+              <div className="flex flex-col gap-3">
+                <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-3">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <span className="text-sm">New face descriptor captured (128 points)</span>
+                  <Button type="button" variant="ghost" size="sm" className="ml-auto" onClick={() => setEditFaceDescriptor(null)}>Retake</Button>
+                </div>
+                <Button
+                  className="w-full"
+                  onClick={() => editFaceTarget && saveFaceId.mutate({ userId: editFaceTarget.user_id, descriptor: editFaceDescriptor })}
+                  disabled={saveFaceId.isPending}
+                >
+                  {saveFaceId.isPending ? "Saving..." : "Save Face ID"}
+                </Button>
+              </div>
+            )}
+            {editFaceTarget && (
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => saveFaceId.mutate({ userId: editFaceTarget.user_id, descriptor: null })}
+                disabled={saveFaceId.isPending}
+              >
+                Remove Face ID
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>
@@ -263,8 +314,8 @@ const UserManagement = () => {
                 </div>
                 <div className="flex items-center gap-1.5">
                   {isSuperAdmin && (
-                    <Button variant="ghost" size="sm" onClick={() => setEditFaceTarget({ user_id: user.user_id, full_name: user.full_name, face_id: (user as any).face_id || "" })}>
-                      <ScanFace className="h-3.5 w-3.5 mr-1" /> Face ID
+                    <Button variant="ghost" size="sm" onClick={() => { setEditFaceTarget({ user_id: user.user_id, full_name: user.full_name }); setEditFaceDescriptor(null); }}>
+                      <ScanFace className="h-3.5 w-3.5 mr-1" /> Face
                     </Button>
                   )}
                   {user.role === "student" && isAdmin && (
