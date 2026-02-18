@@ -17,6 +17,7 @@ export const FaceVerify = ({ storedDescriptor, onSuccess, onSkip, threshold = 0.
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const detectionRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const verifiedRef = useRef(false); // prevent onSuccess firing multiple times
   const [modelsLoaded, setModelsLoaded] = useState(false);
   const [status, setStatus] = useState<"loading" | "ready" | "verifying" | "failed">("loading");
   const [detected, setDetected] = useState(false);
@@ -71,10 +72,11 @@ export const FaceVerify = ({ storedDescriptor, onSuccess, onSkip, threshold = 0.
           }
         }
 
-        if (result) {
+        if (result && !verifiedRef.current) {
           const stored = new Float32Array(storedDescriptor);
           const distance = faceapi.euclideanDistance(result.descriptor, stored);
           if (distance <= threshold) {
+            verifiedRef.current = true;
             stopCamera();
             onSuccess();
           }

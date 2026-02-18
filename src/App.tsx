@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import AppLayout from "@/components/AppLayout";
 import Auth from "@/pages/Auth";
@@ -18,17 +18,15 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { session, loading, hasFaceId } = useAuth();
-  const location = useLocation();
+  const { session, loading } = useAuth();
   if (loading) return <div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>;
   if (!session) return <Navigate to="/auth" replace />;
-  if (!hasFaceId && location.pathname !== "/setup-face") return <Navigate to="/setup-face" replace />;
   return <AppLayout>{children}</AppLayout>;
 };
 
 const FaceSetupRoute: React.FC = () => {
   const { session, loading, hasFaceId } = useAuth();
-  if (loading) return null;
+  if (loading) return <div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>;
   if (!session) return <Navigate to="/auth" replace />;
   if (hasFaceId) return <Navigate to="/" replace />;
   return <FaceSetup />;
