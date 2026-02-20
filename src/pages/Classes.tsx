@@ -141,17 +141,21 @@ const Classes = () => {
 
   const getEnrolledStudents = (classId: string) => enrollments.filter(e => e.class_id === classId);
 
+  const selectedClassName = selectedClassId ? classes.find(c => c.id === selectedClassId)?.name : "";
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-4 sm:space-y-6">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Classes</h1>
-          <p className="text-muted-foreground mt-1">{isAdmin ? "Create and manage classes" : "View your classes"}</p>
+          <h1 className="text-2xl sm:text-3xl font-bold">Classes</h1>
+          <p className="text-muted-foreground text-sm mt-0.5">{isAdmin ? "Create and manage classes" : "View your classes"}</p>
         </div>
         {isAdmin && (
           <Dialog open={open} onOpenChange={setOpen}>
-            <DialogTrigger asChild><Button><Plus className="h-4 w-4 mr-2" /> Create Class</Button></DialogTrigger>
-            <DialogContent>
+            <DialogTrigger asChild>
+              <Button size="sm" className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-2" /> Create Class</Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-[95vw] sm:max-w-lg">
               <DialogHeader><DialogTitle>Create New Class</DialogTitle></DialogHeader>
               <form onSubmit={e => { e.preventDefault(); createClass.mutate(); }} className="space-y-4">
                 <div className="space-y-2"><Label>Class Name</Label><Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} required /></div>
@@ -171,8 +175,9 @@ const Classes = () => {
         )}
       </div>
 
+      {/* Rename Dialog */}
       <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-[95vw] sm:max-w-lg">
           <DialogHeader><DialogTitle>Rename Class</DialogTitle></DialogHeader>
           <form onSubmit={e => { e.preventDefault(); renameClass.mutate(); }} className="space-y-4">
             <div className="space-y-2"><Label>Class Name</Label><Input value={renameForm.name} onChange={e => setRenameForm(f => ({ ...f, name: e.target.value }))} required /></div>
@@ -182,24 +187,70 @@ const Classes = () => {
         </DialogContent>
       </Dialog>
 
+      {/* Manage Students Dialog - standalone so it works on mobile */}
+      <Dialog open={enrollOpen} onOpenChange={v => { setEnrollOpen(v); if (!v) setSelectedClassId(null); }}>
+        <DialogContent className="max-w-[95vw] sm:max-w-md max-h-[85vh] flex flex-col">
+          <DialogHeader><DialogTitle className="text-base">Manage Students — {selectedClassName}</DialogTitle></DialogHeader>
+          <div className="space-y-2 flex-1 overflow-auto -mx-2 px-2">
+            {selectedClassId && (() => {
+              const enrolled = getEnrolledStudents(selectedClassId);
+              const available = students.filter(s => !enrolled.some(e => e.student_id === s.user_id));
+              return (
+                <>
+                  {enrolled.length > 0 && (
+                    <div className="space-y-1.5 mb-3">
+                      <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Enrolled ({enrolled.length})</p>
+                      {enrolled.map(e => (
+                        <div key={e.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/50 gap-2">
+                          <span className="text-sm truncate">{profileMap[e.student_id] || "Unnamed"}</span>
+                          <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-7 px-2 shrink-0"
+                            onClick={() => unenrollStudent.mutate(e.id)}>
+                            <UserMinus className="h-3.5 w-3.5 mr-1" /> Remove
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Available ({available.length})</p>
+                    {available.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        {enrolled.length === 0 ? "No students found" : "All students enrolled"}
+                      </p>
+                    ) : (
+                      available.map(s => (
+                        <div key={s.user_id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/50 gap-2">
+                          <span className="text-sm truncate">{s.full_name || "Unnamed"}</span>
+                          <Button size="sm" variant="outline" className="shrink-0 h-7 px-3" onClick={() => enrollStudent.mutate(s.user_id)}>Enroll</Button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {classes.length === 0 ? (
         <Card><CardContent className="p-8 text-center text-muted-foreground">
           <BookOpen className="h-12 w-12 mx-auto mb-3 opacity-40" />
           <p>No classes yet.{isAdmin ? " Create one to get started." : ""}</p>
         </CardContent></Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
           {classes.map(cls => {
             const enrolled = getEnrolledStudents(cls.id);
             return (
               <Card key={cls.id} className="hover:shadow-md transition-shadow">
-                <CardHeader>
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <CardTitle className="text-lg">{cls.name}</CardTitle>
-                      <CardDescription>{cls.subject}</CardDescription>
+                <CardHeader className="p-4 sm:p-6 pb-2 sm:pb-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <CardTitle className="text-base sm:text-lg truncate">{cls.name}</CardTitle>
+                      <CardDescription className="truncate">{cls.subject}</CardDescription>
                     </div>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 shrink-0">
                       {isAdmin && (
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => {
                           setSelectedClassId(cls.id);
@@ -215,58 +266,28 @@ const Classes = () => {
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       )}
-                      <Badge variant="secondary">{enrolled.length} students</Badge>
+                      <Badge variant="secondary" className="text-xs">{enrolled.length} <span className="hidden sm:inline">students</span></Badge>
                     </div>
                   </div>
                 </CardHeader>
-                <CardContent className="space-y-3">
-                  {cls.description && <p className="text-sm text-muted-foreground">{cls.description}</p>}
+                <CardContent className="p-4 sm:p-6 pt-2 sm:pt-2 space-y-2.5">
+                  {cls.description && <p className="text-sm text-muted-foreground line-clamp-2">{cls.description}</p>}
                   <div className="flex items-center gap-2 text-sm">
-                    <User className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span>{cls.teacher_id ? profileMap[cls.teacher_id] || "Unknown" : "No teacher"}</span>
+                    <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="truncate">{cls.teacher_id ? profileMap[cls.teacher_id] || "Unknown" : "No teacher"}</span>
                   </div>
                   {isAdmin && (
-                    <Dialog open={enrollOpen && selectedClassId === cls.id} onOpenChange={v => { setEnrollOpen(v); if (v) setSelectedClassId(cls.id); }}>
-                      <DialogTrigger asChild>
-                        <Button variant="outline" size="sm" className="w-full"><Users className="h-3.5 w-3.5 mr-1.5" /> Manage Students</Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader><DialogTitle>Manage Students — {cls.name}</DialogTitle></DialogHeader>
-                        <div className="space-y-2 max-h-64 overflow-auto">
-                          {enrolled.length > 0 && (
-                            <div className="space-y-1 mb-3">
-                              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Enrolled</p>
-                              {enrolled.map(e => (
-                                <div key={e.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/50">
-                                  <span className="text-sm">{profileMap[e.student_id] || "Unnamed"}</span>
-                                  <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-7 px-2"
-                                    onClick={() => unenrollStudent.mutate(e.id)}>
-                                    <UserMinus className="h-3.5 w-3.5 mr-1" /> Remove
-                                  </Button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Available</p>
-                          {students.filter(s => !enrolled.some(e => e.student_id === s.user_id)).map(s => (
-                            <div key={s.user_id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/50">
-                              <span className="text-sm">{s.full_name || "Unnamed"}</span>
-                              <Button size="sm" variant="outline" onClick={() => enrollStudent.mutate(s.user_id)}>Enroll</Button>
-                            </div>
-                          ))}
-                          {students.filter(s => !enrolled.some(e => e.student_id === s.user_id)).length === 0 && enrolled.length === 0 && (
-                            <p className="text-sm text-muted-foreground text-center py-4">No students found</p>
-                          )}
-                        </div>
-                      </DialogContent>
-                    </Dialog>
+                    <Button variant="outline" size="sm" className="w-full"
+                      onClick={() => { setSelectedClassId(cls.id); setEnrollOpen(true); }}>
+                      <Users className="h-3.5 w-3.5 mr-1.5" /> Manage Students
+                    </Button>
                   )}
                   <ClassBookInfo
                     classId={cls.id}
-                    bookIsbn={(cls as any).book_isbn ?? null}
-                    bookTitle={(cls as any).book_title ?? null}
-                    bookAuthor={(cls as any).book_author ?? null}
-                    bookCoverUrl={(cls as any).book_cover_url ?? null}
+                    bookIsbn={cls.book_isbn ?? null}
+                    bookTitle={cls.book_title ?? null}
+                    bookAuthor={cls.book_author ?? null}
+                    bookCoverUrl={cls.book_cover_url ?? null}
                   />
                 </CardContent>
               </Card>
