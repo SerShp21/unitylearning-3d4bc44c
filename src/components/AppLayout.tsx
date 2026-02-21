@@ -5,11 +5,11 @@ import { GraduationCap, LayoutDashboard, BookOpen, Calendar, Users, LogOut, Clip
 import { Badge } from "@/components/ui/badge";
 
 const NAV_ITEMS = [
-  { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/classes", icon: BookOpen, label: "Classes" },
-  { to: "/timetable", icon: Calendar, label: "Timetable" },
-  { to: "/grades", icon: Award, label: "Grades" },
-  { to: "/attendance", icon: ClipboardList, label: "Attendance" },
+  { to: "/", icon: LayoutDashboard, label: "Home", shortLabel: "Home" },
+  { to: "/classes", icon: BookOpen, label: "Classes", shortLabel: "Classes" },
+  { to: "/timetable", icon: Calendar, label: "Timetable", shortLabel: "Schedule" },
+  { to: "/grades", icon: Award, label: "Grades", shortLabel: "Grades" },
+  { to: "/attendance", icon: ClipboardList, label: "Attendance", shortLabel: "Attend." },
 ];
 
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -24,19 +24,19 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }[role ?? "student"];
 
   return (
-    <div className="flex min-h-screen">
-      {/* Sidebar */}
-      <aside className="hidden md:flex w-64 flex-col bg-primary text-primary-foreground p-4">
+    <div className="flex min-h-screen flex-col md:flex-row">
+      {/* Desktop Sidebar */}
+      <aside className="hidden md:flex w-60 flex-col bg-primary text-primary-foreground p-4 shrink-0">
         <div className="flex items-center gap-2 mb-8">
-          <GraduationCap className="h-8 w-8" />
-          <span className="text-xl font-bold font-['Space_Grotesk']">UnityClass</span>
+          <GraduationCap className="h-7 w-7" />
+          <span className="text-lg font-bold font-['Space_Grotesk']">UnityClass</span>
         </div>
-        <nav className="flex-1 space-y-1">
+        <nav className="flex-1 space-y-0.5">
           {NAV_ITEMS.map(item => (
             <Link
               key={item.to}
               to={item.to}
-              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
                 location.pathname === item.to ? "bg-primary-foreground/20 font-medium" : "hover:bg-primary-foreground/10"
               }`}
             >
@@ -47,18 +47,18 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           {isSuperAdmin && (
             <Link
               to="/users"
-              className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-colors ${
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
                 location.pathname === "/users" ? "bg-primary-foreground/20 font-medium" : "hover:bg-primary-foreground/10"
               }`}
             >
               <Users className="h-4 w-4" />
-              User Management
+              Users
             </Link>
           )}
         </nav>
-        <div className="border-t border-primary-foreground/20 pt-4 mt-4">
-          <div className="flex items-center gap-2 mb-3 px-1">
-            <div className="h-8 w-8 rounded-full bg-primary-foreground/20 flex items-center justify-center text-xs font-bold">
+        <div className="border-t border-primary-foreground/20 pt-3 mt-3">
+          <div className="flex items-center gap-2 mb-2 px-1">
+            <div className="h-8 w-8 rounded-full bg-primary-foreground/20 flex items-center justify-center text-xs font-bold shrink-0">
               {profile?.full_name?.charAt(0)?.toUpperCase() || "U"}
             </div>
             <div className="flex-1 min-w-0">
@@ -75,34 +75,54 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </div>
       </aside>
 
-      {/* Mobile header */}
-      <div className="flex flex-1 flex-col">
-        <header className="md:hidden flex items-center justify-between border-b p-3 bg-card">
-          <div className="flex items-center gap-2">
-            <GraduationCap className="h-6 w-6 text-primary" />
-            <span className="font-bold">UnityClass</span>
+      {/* Mobile: content area + bottom nav */}
+      <div className="flex flex-1 flex-col min-h-0">
+        {/* Mobile top bar - compact */}
+        <header className="md:hidden flex items-center justify-between border-b px-3 py-2 bg-card shrink-0">
+          <div className="flex items-center gap-1.5">
+            <GraduationCap className="h-5 w-5 text-primary" />
+            <span className="font-bold text-sm">UnityClass</span>
           </div>
-          <div className="flex items-center gap-2">
-            <Badge variant="secondary" className={`text-[10px] ${roleBadgeColor}`}>
+          <div className="flex items-center gap-1.5">
+            <Badge variant="secondary" className={`text-[9px] px-1.5 py-0 ${roleBadgeColor}`}>
               {role?.replace("_", " ") ?? "student"}
             </Badge>
-            <Button variant="ghost" size="icon" onClick={signOut}><LogOut className="h-4 w-4" /></Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={signOut}><LogOut className="h-3.5 w-3.5" /></Button>
           </div>
         </header>
-        {/* Mobile nav */}
-        <nav className="md:hidden flex border-b bg-card overflow-x-auto">
-          {NAV_ITEMS.map(item => (
-            <Link key={item.to} to={item.to} className={`flex items-center gap-1.5 px-4 py-2.5 text-xs whitespace-nowrap border-b-2 ${location.pathname === item.to ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}>
-              <item.icon className="h-3.5 w-3.5" />{item.label}
-            </Link>
-          ))}
+
+        {/* Main content - fills remaining space */}
+        <main className="flex-1 p-3 md:p-6 overflow-auto pb-16 md:pb-6">{children}</main>
+
+        {/* Mobile bottom nav - fixed */}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t flex items-stretch z-50 safe-area-bottom">
+          {NAV_ITEMS.map(item => {
+            const active = location.pathname === item.to;
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                className={`flex-1 flex flex-col items-center justify-center py-1.5 gap-0.5 transition-colors ${
+                  active ? "text-primary" : "text-muted-foreground"
+                }`}
+              >
+                <item.icon className={`h-4 w-4 ${active ? "text-primary" : ""}`} />
+                <span className="text-[10px] leading-tight font-medium">{item.shortLabel}</span>
+              </Link>
+            );
+          })}
           {isSuperAdmin && (
-            <Link to="/users" className={`flex items-center gap-1.5 px-4 py-2.5 text-xs whitespace-nowrap border-b-2 ${location.pathname === "/users" ? "border-primary text-primary" : "border-transparent text-muted-foreground"}`}>
-              <Users className="h-3.5 w-3.5" />Users
+            <Link
+              to="/users"
+              className={`flex-1 flex flex-col items-center justify-center py-1.5 gap-0.5 transition-colors ${
+                location.pathname === "/users" ? "text-primary" : "text-muted-foreground"
+              }`}
+            >
+              <Users className={`h-4 w-4 ${location.pathname === "/users" ? "text-primary" : ""}`} />
+              <span className="text-[10px] leading-tight font-medium">Users</span>
             </Link>
           )}
         </nav>
-        <main className="flex-1 p-4 md:p-6 overflow-auto">{children}</main>
       </div>
     </div>
   );
