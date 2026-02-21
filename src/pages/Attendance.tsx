@@ -7,18 +7,23 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { ClipboardList, Trash2 } from "lucide-react";
+import { ClipboardList, Trash2, Check, X, Clock, ShieldCheck } from "lucide-react";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const STATUS_OPTIONS = ["present", "absent", "late", "excused"] as const;
 const STATUS_COLORS: Record<string, string> = {
-  present: "bg-green-100 text-green-800",
-  absent: "bg-red-100 text-red-800",
-  late: "bg-yellow-100 text-yellow-800",
-  excused: "bg-blue-100 text-blue-800",
+  present: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
+  absent: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+  late: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300",
+  excused: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+};
+const STATUS_ICONS: Record<string, React.ReactNode> = {
+  present: <Check className="h-3 w-3" />,
+  absent: <X className="h-3 w-3" />,
+  late: <Clock className="h-3 w-3" />,
+  excused: <ShieldCheck className="h-3 w-3" />,
 };
 
 const Attendance = () => {
@@ -83,7 +88,7 @@ const Attendance = () => {
     : [];
 
   const formatEntry = (entry: any) =>
-    `${DAYS[entry.day_of_week] ?? "?"} ${entry.start_time}-${entry.end_time}${entry.room ? ` (${entry.room})` : ""}`;
+    `${DAYS[entry.day_of_week] ?? "?"} ${entry.start_time?.slice(0, 5)}-${entry.end_time?.slice(0, 5)}${entry.room ? ` (${entry.room})` : ""}`;
 
   const studentsInClass = selectedClass
     ? enrollments.filter(e => e.class_id === selectedClass).map(e => ({
@@ -137,29 +142,27 @@ const Attendance = () => {
     : attendance;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Attendance</h1>
-        <p className="text-muted-foreground mt-1">
-          {canManage ? "Mark and manage attendance" : "View your attendance record"}
-        </p>
-      </div>
+    <div className="space-y-3 sm:space-y-5">
+      {/* Header + filters inline */}
+      <div className="space-y-2">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Attendance</h1>
 
-      <div className="flex flex-wrap gap-3 items-end">
-        <div className="space-y-1">
-          <Label>Class</Label>
+        {/* Compact filter row */}
+        <div className="flex flex-wrap gap-2 items-end">
           <Select value={selectedClass} onValueChange={v => { setSelectedClass(v); setSelectedEntry(""); }}>
-            <SelectTrigger className="w-[200px]"><SelectValue placeholder="Select class" /></SelectTrigger>
+            <SelectTrigger className="w-full sm:w-[180px] h-9 text-sm">
+              <SelectValue placeholder="Select class" />
+            </SelectTrigger>
             <SelectContent>
               {classes.map(c => <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>)}
             </SelectContent>
           </Select>
-        </div>
-        {selectedClass && entriesForClass.length > 0 && (
-          <div className="space-y-1">
-            <Label>Timetable Slot</Label>
+
+          {selectedClass && entriesForClass.length > 0 && (
             <Select value={selectedEntry} onValueChange={setSelectedEntry}>
-              <SelectTrigger className="w-[260px]"><SelectValue placeholder="All slots" /></SelectTrigger>
+              <SelectTrigger className="w-full sm:w-[200px] h-9 text-sm">
+                <SelectValue placeholder="All slots" />
+              </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All slots</SelectItem>
                 {entriesForClass.map(e => (
@@ -167,111 +170,101 @@ const Attendance = () => {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-        )}
-        <div className="space-y-1">
-          <Label>Date</Label>
-          <Input type="date" value={selectedDate} onChange={e => setSelectedDate(e.target.value)} className="w-[180px]" />
+          )}
+
+          <Input
+            type="date"
+            value={selectedDate}
+            onChange={e => setSelectedDate(e.target.value)}
+            className="w-full sm:w-[160px] h-9 text-sm"
+          />
         </div>
       </div>
 
+      {/* Content */}
       {!selectedClass ? (
-        <Card><CardContent className="p-8 text-center text-muted-foreground">
-          <ClipboardList className="h-12 w-12 mx-auto mb-3 opacity-40" />
-          <p>Select a class to view or mark attendance.</p>
-        </CardContent></Card>
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center p-8 text-center">
+            <ClipboardList className="h-10 w-10 text-muted-foreground/40 mb-2" />
+            <p className="text-sm text-muted-foreground">Select a class to view or mark attendance.</p>
+          </CardContent>
+        </Card>
       ) : canManage ? (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Student</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {studentsInClass.length === 0 ? (
-                  <TableRow><TableCell colSpan={3} className="text-center text-muted-foreground py-6">No students enrolled</TableCell></TableRow>
-                ) : (
-                  studentsInClass.map(s => {
-                    const record = attendance.find(a => a.student_id === s.user_id);
-                    const currentStatus = record?.status || "unmarked";
-                    return (
-                      <TableRow key={s.user_id}>
-                        <TableCell className="font-medium">{s.full_name}</TableCell>
-                        <TableCell>
-                          <Badge className={STATUS_COLORS[currentStatus] || "bg-muted text-muted-foreground"}>
-                            {currentStatus}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-1.5 flex-wrap items-center">
-                            {STATUS_OPTIONS.map(status => (
-                              <Button
-                                key={status}
-                                size="sm"
-                                variant={currentStatus === status ? "default" : "outline"}
-                                onClick={() => markAttendance.mutate({ studentId: s.user_id, status })}
-                                disabled={markAttendance.isPending}
-                                className="text-xs capitalize"
-                              >
-                                {status}
-                              </Button>
-                            ))}
-                            {isSuperAdmin && record && (
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive"
-                                onClick={() => deleteAttendance.mutate(record.id)}>
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        /* Card-based student list for mobile-friendly marking */
+        <div className="space-y-2">
+          {studentsInClass.length === 0 ? (
+            <Card>
+              <CardContent className="p-6 text-center text-sm text-muted-foreground">No students enrolled</CardContent>
+            </Card>
+          ) : (
+            studentsInClass.map(s => {
+              const record = attendance.find(a => a.student_id === s.user_id);
+              const currentStatus = record?.status || "unmarked";
+              return (
+                <Card key={s.user_id} className="overflow-hidden">
+                  <CardContent className="p-3 sm:p-4 flex flex-col gap-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-sm truncate">{s.full_name}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <Badge className={`text-[10px] px-1.5 ${STATUS_COLORS[currentStatus] || "bg-muted text-muted-foreground"}`}>
+                          {currentStatus}
+                        </Badge>
+                        {isSuperAdmin && record && (
+                          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive hover:text-destructive"
+                            onClick={() => deleteAttendance.mutate(record.id)}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-1.5">
+                      {STATUS_OPTIONS.map(status => (
+                        <Button
+                          key={status}
+                          size="sm"
+                          variant={currentStatus === status ? "default" : "outline"}
+                          onClick={() => markAttendance.mutate({ studentId: s.user_id, status })}
+                          disabled={markAttendance.isPending}
+                          className="flex-1 text-[11px] capitalize h-8 gap-1 px-1"
+                        >
+                          {STATUS_ICONS[status]}
+                          <span className="hidden xs:inline">{status}</span>
+                          <span className="xs:hidden">{status.slice(0, 1).toUpperCase()}</span>
+                        </Button>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
+        </div>
       ) : (
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Class</TableHead>
-                  <TableHead>Slot</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {displayAttendance.length === 0 ? (
-                  <TableRow><TableCell colSpan={4} className="text-center text-muted-foreground py-6">No attendance records</TableCell></TableRow>
-                ) : (
-                  displayAttendance.map(a => {
-                    const entry = a.timetable_entry_id ? timetableMap[a.timetable_entry_id] : null;
-                    return (
-                      <TableRow key={a.id}>
-                        <TableCell>{a.date}</TableCell>
-                        <TableCell>{classMap[a.class_id] || "—"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">
-                          {entry ? formatEntry(entry) : "—"}
-                        </TableCell>
-                        <TableCell>
-                          <Badge className={STATUS_COLORS[a.status] || ""}>{a.status}</Badge>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        /* Student view - compact cards */
+        <div className="space-y-2">
+          {displayAttendance.length === 0 ? (
+            <Card>
+              <CardContent className="p-6 text-center text-sm text-muted-foreground">No attendance records</CardContent>
+            </Card>
+          ) : (
+            displayAttendance.map(a => {
+              const entry = a.timetable_entry_id ? timetableMap[a.timetable_entry_id] : null;
+              return (
+                <Card key={a.id}>
+                  <CardContent className="p-3 flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium truncate">{classMap[a.class_id] || "—"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {a.date} {entry ? `· ${formatEntry(entry)}` : ""}
+                      </p>
+                    </div>
+                    <Badge className={`shrink-0 text-[10px] ${STATUS_COLORS[a.status] || ""}`}>{a.status}</Badge>
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
+        </div>
       )}
     </div>
   );

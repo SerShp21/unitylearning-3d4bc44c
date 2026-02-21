@@ -1,8 +1,8 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { BookOpen, Users, Calendar, GraduationCap } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { BookOpen, Users, Calendar, GraduationCap, Award, ClipboardList } from "lucide-react";
 import { Link } from "react-router-dom";
 
 const Dashboard = () => {
@@ -34,48 +34,39 @@ const Dashboard = () => {
   });
 
   const stats = [
-    { label: "Classes", value: classCount, icon: BookOpen, to: "/classes", color: "text-primary" },
-    { label: "Timetable Entries", value: timetableCount, icon: Calendar, to: "/timetable", color: "text-accent" },
-    ...(isSuperAdmin ? [{ label: "Users", value: userCount, icon: Users, to: "/users", color: "text-destructive" }] : []),
+    { label: "Classes", value: classCount, icon: BookOpen, to: "/classes", color: "text-primary bg-primary/10" },
+    { label: "Schedule", value: timetableCount, icon: Calendar, to: "/timetable", color: "text-accent bg-accent/10" },
+    { label: "Grades", value: "—", icon: Award, to: "/grades", color: "text-warning bg-warning/10" },
+    { label: "Attendance", value: "—", icon: ClipboardList, to: "/attendance", color: "text-success bg-success/10" },
+    ...(isSuperAdmin ? [{ label: "Users", value: userCount, icon: Users, to: "/users", color: "text-destructive bg-destructive/10" }] : []),
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div>
-        <h1 className="text-3xl font-bold">Welcome, {profile?.full_name || "User"}</h1>
-        <p className="text-muted-foreground mt-1">
-          {isAdmin ? "Manage your classes, timetable, and users." : role === "teacher" ? "View your assigned classes and schedule." : "View your enrolled classes and schedule."}
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Hi, {profile?.full_name?.split(" ")[0] || "there"} 👋</h1>
+        <p className="text-sm text-muted-foreground mt-0.5">
+          {isAdmin ? "Manage your school at a glance." : role === "teacher" ? "Your teaching overview." : "Your student dashboard."}
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 sm:gap-3">
         {stats.map(s => (
           <Link key={s.label} to={s.to}>
-            <Card className="hover:shadow-md transition-shadow cursor-pointer">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">{s.label}</CardTitle>
-                <s.icon className={`h-5 w-5 ${s.color}`} />
-              </CardHeader>
-              <CardContent>
-                <p className="text-3xl font-bold">{s.value}</p>
+            <Card className="hover:shadow-md transition-all cursor-pointer h-full">
+              <CardContent className="p-3 sm:p-4 flex items-center gap-3">
+                <div className={`h-9 w-9 rounded-xl flex items-center justify-center shrink-0 ${s.color}`}>
+                  <s.icon className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-lg sm:text-xl font-bold leading-tight">{s.value}</p>
+                  <p className="text-[11px] text-muted-foreground truncate">{s.label}</p>
+                </div>
               </CardContent>
             </Card>
           </Link>
         ))}
       </div>
-
-      {!isAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><GraduationCap className="h-5 w-5" /> Quick Info</CardTitle>
-          </CardHeader>
-          <CardContent className="text-muted-foreground">
-            {role === "teacher"
-              ? "Navigate to Classes to see your assigned classes, or Timetable for your weekly schedule."
-              : "Navigate to Classes to see your enrolled classes, or Timetable for your weekly schedule."}
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 };
