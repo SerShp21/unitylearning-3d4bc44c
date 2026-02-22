@@ -29,10 +29,34 @@ const cleanISBN = (raw: string): string => raw.replace(/[-\s]/g, "");
 
 const fetchBookByISBN = async (isbn: string): Promise<BookData | null> => {
   const cleaned = cleanISBN(isbn);
+  if (!cleaned || cleaned.length < 10) return null;
 
-  // Try Open Library ISBN API first
+  // Try Open Library books API (most reliable)
   try {
-    const res = await fetch(`https://openlibrary.org/isbn/${cleaned}.json`);
+    const res = await fetch(
+      `https://openlibrary.org/api/books?bibkeys=ISBN:${cleaned}&format=json&jscmd=data`,
+      { headers: { Accept: "application/json" } }
+    );
+    if (res.ok) {
+      const data = await res.json();
+      const key = `ISBN:${cleaned}`;
+      if (data[key]) {
+        const book = data[key];
+        return {
+          isbn: cleaned,
+          title: book.title || "Unknown Title",
+          author: book.authors?.[0]?.name || "Unknown Author",
+          cover_url: book.cover?.medium || book.cover?.small || "",
+        };
+      }
+    }
+  } catch { /* fall through */ }
+
+  // Fallback: ISBN endpoint
+  try {
+    const res = await fetch(`https://openlibrary.org/isbn/${cleaned}.json`, {
+      headers: { Accept: "application/json" },
+    });
     if (res.ok) {
       const data = await res.json();
       let author = "Unknown Author";
@@ -52,24 +76,6 @@ const fetchBookByISBN = async (isbn: string): Promise<BookData | null> => {
         author,
         cover_url: coverId ? `https://covers.openlibrary.org/b/id/${coverId}-M.jpg` : "",
       };
-    }
-  } catch { /* fall through */ }
-
-  // Fallback: books API
-  try {
-    const res = await fetch(`https://openlibrary.org/api/books?bibkeys=ISBN:${cleaned}&format=json&jscmd=data`);
-    if (res.ok) {
-      const data = await res.json();
-      const key = `ISBN:${cleaned}`;
-      if (data[key]) {
-        const book = data[key];
-        return {
-          isbn: cleaned,
-          title: book.title || "Unknown Title",
-          author: book.authors?.[0]?.name || "Unknown Author",
-          cover_url: book.cover?.medium || book.cover?.small || "",
-        };
-      }
     }
   } catch { /* fall through */ }
 
