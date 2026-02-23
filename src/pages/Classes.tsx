@@ -316,10 +316,11 @@ const Classes = () => {
                     )}
                     <ClassBookInfo
                       classId={cls.id}
-                      bookIsbn={cls.book_isbn ?? null}
                       bookTitle={cls.book_title ?? null}
                       bookAuthor={cls.book_author ?? null}
                       bookCoverUrl={cls.book_cover_url ?? null}
+                      bookPublisher={(cls as any).book_publisher ?? null}
+                      bookEbookUrl={(cls as any).book_ebook_url ?? null}
                       canEdit={canEditBooks}
                     />
                   </div>
