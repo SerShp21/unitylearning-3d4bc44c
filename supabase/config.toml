@@ -1,1 +1,10 @@
 project_id = "romulkwdhzrnlvagmcfj"
+
+[functions.externalapi]
+verify_jwt = false
+
+[functions.bootstrap-admin]
+verify_jwt = false
+
+[functions.analyze-book-cover]
+verify_jwt = false

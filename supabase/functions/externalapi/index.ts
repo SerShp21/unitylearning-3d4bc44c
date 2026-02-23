@@ -33,7 +33,6 @@ Deno.serve(async (req) => {
     const { data: { user: caller }, error: authErr } = await anonClient.auth.getUser(token);
     if (authErr || !caller) return json({ error: "Unauthorized" }, 401);
 
-    // Check super_admin role
     const { data: roleData } = await supabase.from("user_roles").select("role").eq("user_id", caller.id).maybeSingle();
     if (roleData?.role !== "super_admin") return json({ error: "Only super_admin can create users" }, 403);
 
@@ -41,24 +40,13 @@ Deno.serve(async (req) => {
     const { email, password, full_name, role, face_id } = body;
     if (!email || !password) return json({ error: "email and password required" }, 400);
 
-    // Create auth user
     const { data: newUser, error: createErr } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: { full_name: full_name || "" },
+      email, password, email_confirm: true, user_metadata: { full_name: full_name || "" },
     });
     if (createErr) return json({ error: createErr.message }, 400);
 
-    // Update profile face_id if provided
-    if (face_id) {
-      await supabase.from("profiles").update({ face_id }).eq("user_id", newUser.user.id);
-    }
-
-    // Update role if not student (trigger sets student by default)
-    if (role && role !== "student") {
-      await supabase.from("user_roles").update({ role }).eq("user_id", newUser.user.id);
-    }
+    if (face_id) await supabase.from("profiles").update({ face_id }).eq("user_id", newUser.user.id);
+    if (role && role !== "student") await supabase.from("user_roles").update({ role }).eq("user_id", newUser.user.id);
 
     return json({ data: { id: newUser.user.id, email } }, 201);
   }
@@ -112,8 +100,13 @@ Deno.serve(async (req) => {
           if (error) throw error;
           return json({ data });
         }
+        case "lectures": {
+          const { data, error } = await supabase.from("lectures").select("*, classes(name)");
+          if (error) throw error;
+          return json({ data });
+        }
         default:
-          return json({ error: "Missing or invalid 'resource' param", available: ["classes", "timetable", "users", "enrollments", "grades", "attendance"] }, 400);
+          return json({ error: "Missing or invalid 'resource' param", available: ["classes", "timetable", "users", "enrollments", "grades", "attendance", "lectures"] }, 400);
       }
     }
 
@@ -161,6 +154,17 @@ Deno.serve(async (req) => {
           if (error) throw error;
           return json({ data }, 201);
         }
+        case "lectures": {
+          const { class_id, title, file_url, file_name, file_type, uploaded_by } = body;
+          if (!class_id || !title || !file_url || !file_name || !file_type || !uploaded_by) {
+            return json({ error: "class_id, title, file_url, file_name, file_type, uploaded_by required" }, 400);
+          }
+          const { data, error } = await supabase.from("lectures").insert({
+            class_id, title, file_url, file_name, file_type, uploaded_by,
+          }).select().single();
+          if (error) throw error;
+          return json({ data }, 201);
+        }
         default:
           return json({ error: "POST not supported for this resource" }, 400);
       }
@@ -199,6 +203,16 @@ Deno.serve(async (req) => {
         }
         case "user_roles": {
           const { data, error } = await supabase.from("user_roles").update(body).eq("user_id", id).select().single();
+          if (error) throw error;
+          return json({ data });
+        }
+        case "enrollments": {
+          const { data, error } = await supabase.from("class_enrollments").update(body).eq("id", id).select().single();
+          if (error) throw error;
+          return json({ data });
+        }
+        case "lectures": {
+          const { data, error } = await supabase.from("lectures").update(body).eq("id", id).select().single();
           if (error) throw error;
           return json({ data });
         }
@@ -249,12 +263,18 @@ Deno.serve(async (req) => {
           if (error) throw error;
           return json({ success: true });
         }
+        case "lectures": {
+          if (!id) return json({ error: "id required" }, 400);
+          const { error } = await supabase.from("lectures").delete().eq("id", id);
+          if (error) throw error;
+          return json({ success: true });
+        }
         case "users": {
           if (!id) return json({ error: "id (user_id) required" }, 400);
-          // Remove all related data then delete auth user
           await supabase.from("class_enrollments").delete().eq("student_id", id);
           await supabase.from("attendance").delete().eq("student_id", id);
           await supabase.from("grades").delete().eq("student_id", id);
+          await supabase.from("lectures").delete().eq("uploaded_by", id);
           await supabase.from("user_roles").delete().eq("user_id", id);
           await supabase.from("profiles").delete().eq("user_id", id);
           const { error } = await supabase.auth.admin.deleteUser(id);
