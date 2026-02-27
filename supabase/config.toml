@@ -8,3 +8,6 @@ verify_jwt = false
 
 [functions.analyze-book-cover]
 verify_jwt = false
+
+[functions.robot-ai]
+verify_jwt = false

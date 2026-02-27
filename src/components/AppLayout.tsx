@@ -1,7 +1,7 @@
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, LayoutDashboard, BookOpen, Calendar, Users, LogOut, ClipboardList, Award, FileText } from "lucide-react";
+import { GraduationCap, LayoutDashboard, BookOpen, Calendar, Users, LogOut, ClipboardList, Award, FileText, Bot } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const NAV_ITEMS = [
@@ -14,7 +14,8 @@ const NAV_ITEMS = [
 ];
 
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { signOut, profile, role, isSuperAdmin } = useAuth();
+  const { signOut, profile, role, isSuperAdmin, isAdmin } = useAuth();
+  const isTeacherOrAdmin = isAdmin || role === "teacher";
   const location = useLocation();
 
   const roleBadgeColor = {
@@ -45,6 +46,17 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               {item.label}
             </Link>
           ))}
+          {isTeacherOrAdmin && (
+            <Link
+              to="/robot"
+              className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
+                location.pathname === "/robot" ? "bg-primary-foreground/20 font-medium" : "hover:bg-primary-foreground/10"
+              }`}
+            >
+              <Bot className="h-4 w-4" />
+              Robot
+            </Link>
+          )}
           {isSuperAdmin && (
             <Link
               to="/users"
@@ -112,6 +124,17 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               </Link>
             );
           })}
+          {isTeacherOrAdmin && (
+            <Link
+              to="/robot"
+              className={`flex-1 flex flex-col items-center justify-center py-1.5 gap-0.5 transition-colors ${
+                location.pathname === "/robot" ? "text-primary" : "text-muted-foreground"
+              }`}
+            >
+              <Bot className={`h-4 w-4 ${location.pathname === "/robot" ? "text-primary" : ""}`} />
+              <span className="text-[10px] leading-tight font-medium">Robot</span>
+            </Link>
+          )}
           {isSuperAdmin && (
             <Link
               to="/users"
