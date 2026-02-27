@@ -14,6 +14,7 @@ import UserManagement from "@/pages/UserManagement";
 import Grades from "@/pages/Grades";
 import Attendance from "@/pages/Attendance";
 import Lectures from "@/pages/Lectures";
+import Robot from "@/pages/Robot";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -59,6 +60,7 @@ const App = () => (
             <Route path="/grades" element={<ProtectedRoute><Grades /></ProtectedRoute>} />
             <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
             <Route path="/lectures" element={<ProtectedRoute><Lectures /></ProtectedRoute>} />
+            <Route path="/robot" element={<ProtectedRoute><Robot /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>
