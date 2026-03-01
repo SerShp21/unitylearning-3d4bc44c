@@ -10,7 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Search, Shield, UserX, Plus, ScanFace, Trash2, CheckCircle2 } from "lucide-react";
+import { Search, Shield, UserX, Plus, ScanFace, Trash2, CheckCircle2, Pencil, Mail } from "lucide-react";
 import type { Enums } from "@/integrations/supabase/types";
 import { FaceCapture } from "@/components/FaceCapture";
 
@@ -23,10 +23,11 @@ const UserManagement = () => {
   const [search, setSearch] = useState("");
   const [expelTarget, setExpelTarget] = useState<{ user_id: string; full_name: string } | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [createForm, setCreateForm] = useState({ email: "", password: "", full_name: "", role: "student" as AppRole });
-  const [pendingFaceDescriptor, setPendingFaceDescriptor] = useState<number[] | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
   const [editFaceTarget, setEditFaceTarget] = useState<{ user_id: string; full_name: string } | null>(null);
   const [editFaceDescriptor, setEditFaceDescriptor] = useState<number[] | null>(null);
+  const [editProfileTarget, setEditProfileTarget] = useState<any>(null);
+  const [editForm, setEditForm] = useState({ full_name: "", gender: "", parent_email: "" });
 
   const { data: users = [] } = useQuery({
     queryKey: ["all-users"],
@@ -53,10 +54,7 @@ const UserManagement = () => {
         if (error) throw error;
       }
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["all-users"] });
-      toast.success("Role updated!");
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["all-users"] }); toast.success("Role updated!"); },
     onError: (err: any) => toast.error(err.message),
   });
 
@@ -66,50 +64,39 @@ const UserManagement = () => {
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["enrollments"] });
-      queryClient.invalidateQueries({ queryKey: ["all-users"] });
+      queryClient.invalidateQueries({ queryKey: ["enrollments", "all-users"] });
       setExpelTarget(null);
       toast.success("Student expelled from all classes!");
     },
     onError: (err: any) => toast.error(err.message),
   });
 
-  const createUser = useMutation({
+  const inviteUser = useMutation({
     mutationFn: async () => {
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/externalapi?resource=create_user`, {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/externalapi?resource=invite_user`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Authorization": `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`,
         },
-        body: JSON.stringify({
-          email: createForm.email,
-          password: createForm.password,
-          full_name: createForm.full_name,
-          role: createForm.role,
-          face_id: pendingFaceDescriptor ? JSON.stringify(pendingFaceDescriptor) : null,
-        }),
+        body: JSON.stringify({ email: inviteEmail }),
       });
       const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Failed to create user");
+      if (!response.ok) throw new Error(data.error || "Failed to invite user");
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["all-users"] });
-      setCreateForm({ email: "", password: "", full_name: "", role: "student" });
-      setPendingFaceDescriptor(null);
+      setInviteEmail("");
       setCreateOpen(false);
-      toast.success("User created successfully!");
+      toast.success("Invitation sent! The student will receive an email to set up their account.");
     },
     onError: (err: any) => toast.error(err.message),
   });
 
   const saveFaceId = useMutation({
     mutationFn: async ({ userId, descriptor }: { userId: string; descriptor: number[] | null }) => {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ face_id: descriptor ? JSON.stringify(descriptor) : null })
-        .eq("user_id", userId);
+      const { error } = await supabase.from("profiles").update({ face_id: descriptor ? JSON.stringify(descriptor) : null }).eq("user_id", userId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -117,6 +104,23 @@ const UserManagement = () => {
       setEditFaceTarget(null);
       setEditFaceDescriptor(null);
       toast.success("Face ID updated!");
+    },
+    onError: (err: any) => toast.error(err.message),
+  });
+
+  const updateProfile = useMutation({
+    mutationFn: async (userId: string) => {
+      const updates: any = {};
+      if (editForm.full_name) updates.full_name = editForm.full_name;
+      if (editForm.gender) updates.gender = editForm.gender;
+      if (editForm.parent_email) updates.parent_email = editForm.parent_email;
+      const { error } = await supabase.from("profiles").update(updates).eq("user_id", userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["all-users"] });
+      setEditProfileTarget(null);
+      toast.success("Profile updated!");
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -131,10 +135,7 @@ const UserManagement = () => {
       const { error: profErr } = await supabase.from("profiles").delete().eq("user_id", userId);
       if (profErr) throw profErr;
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["all-users"] });
-      toast.success("User removed from system!");
-    },
+    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["all-users"] }); toast.success("User removed!"); },
     onError: (err: any) => toast.error(err.message),
   });
 
@@ -162,64 +163,24 @@ const UserManagement = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">User Management</h1>
-          <p className="text-muted-foreground mt-1">Manage users, roles, and Face IDs</p>
+          <p className="text-muted-foreground mt-1">Invite users and manage profiles</p>
         </div>
         {isSuperAdmin && (
-          <Dialog open={createOpen} onOpenChange={open => { setCreateOpen(open); if (!open) setPendingFaceDescriptor(null); }}>
+          <Dialog open={createOpen} onOpenChange={setCreateOpen}>
             <DialogTrigger asChild>
-              <Button><Plus className="h-4 w-4 mr-2" /> Add User</Button>
+              <Button><Plus className="h-4 w-4 mr-2" /> Invite User</Button>
             </DialogTrigger>
-            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-              <DialogHeader><DialogTitle>Create New User</DialogTitle></DialogHeader>
-              <form onSubmit={e => { e.preventDefault(); createUser.mutate(); }} className="space-y-4">
+            <DialogContent className="max-w-sm">
+              <DialogHeader><DialogTitle>Invite New User</DialogTitle></DialogHeader>
+              <form onSubmit={e => { e.preventDefault(); inviteUser.mutate(); }} className="space-y-4">
                 <div className="space-y-2">
-                  <Label>Full Name</Label>
-                  <Input value={createForm.full_name} onChange={e => setCreateForm(f => ({ ...f, full_name: e.target.value }))} required />
+                  <Label>Student Email</Label>
+                  <Input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="student@example.com" required />
+                  <p className="text-xs text-muted-foreground">The student will receive an email to complete their account setup (name, password, Face ID, etc.)</p>
                 </div>
-                <div className="space-y-2">
-                  <Label>Email</Label>
-                  <Input type="email" value={createForm.email} onChange={e => setCreateForm(f => ({ ...f, email: e.target.value }))} required />
-                </div>
-                <div className="space-y-2">
-                  <Label>Password</Label>
-                  <Input type="password" value={createForm.password} onChange={e => setCreateForm(f => ({ ...f, password: e.target.value }))} required minLength={6} />
-                </div>
-                <div className="space-y-2">
-                  <Label>Role</Label>
-                  <Select value={createForm.role} onValueChange={(v: AppRole) => setCreateForm(f => ({ ...f, role: v }))}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {ROLES.map(r => <SelectItem key={r} value={r}>{r.replace("_", " ")}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Face ID capture */}
-                <div className="space-y-2 border rounded-lg p-4">
-                  <div className="flex items-center justify-between">
-                    <Label>Face ID (optional)</Label>
-                    {pendingFaceDescriptor && (
-                      <span className="flex items-center gap-1 text-xs text-green-600 font-medium">
-                        <CheckCircle2 className="h-3.5 w-3.5" /> Captured
-                      </span>
-                    )}
-                  </div>
-                  {!pendingFaceDescriptor ? (
-                    <FaceCapture
-                      label="Capture Face"
-                      onCapture={desc => setPendingFaceDescriptor(desc)}
-                      onCancel={() => setPendingFaceDescriptor(null)}
-                    />
-                  ) : (
-                    <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
-                      <span className="text-sm text-muted-foreground">Face descriptor stored (128 points)</span>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => setPendingFaceDescriptor(null)}>Remove</Button>
-                    </div>
-                  )}
-                </div>
-
-                <Button type="submit" className="w-full" disabled={createUser.isPending}>
-                  {createUser.isPending ? "Creating..." : "Create User"}
+                <Button type="submit" className="w-full" disabled={inviteUser.isPending}>
+                  <Mail className="h-4 w-4 mr-2" />
+                  {inviteUser.isPending ? "Sending..." : "Send Invitation"}
                 </Button>
               </form>
             </DialogContent>
@@ -236,13 +197,10 @@ const UserManagement = () => {
       <Dialog open={!!expelTarget} onOpenChange={v => !v && setExpelTarget(null)}>
         <DialogContent>
           <DialogHeader><DialogTitle>Expel Student</DialogTitle></DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            Are you sure you want to expel <strong>{expelTarget?.full_name}</strong> from all classes?
-          </p>
+          <p className="text-sm text-muted-foreground">Are you sure you want to expel <strong>{expelTarget?.full_name}</strong> from all classes?</p>
           <div className="flex gap-2 justify-end mt-4">
             <Button variant="outline" onClick={() => setExpelTarget(null)}>Cancel</Button>
-            <Button variant="destructive" onClick={() => expelTarget && expelStudent.mutate(expelTarget.user_id)}
-              disabled={expelStudent.isPending}>
+            <Button variant="destructive" onClick={() => expelTarget && expelStudent.mutate(expelTarget.user_id)} disabled={expelStudent.isPending}>
               {expelStudent.isPending ? "Expelling..." : "Expel"}
             </Button>
           </div>
@@ -255,100 +213,132 @@ const UserManagement = () => {
           <DialogHeader><DialogTitle>Face ID — {editFaceTarget?.full_name}</DialogTitle></DialogHeader>
           <div className="space-y-4">
             {!editFaceDescriptor ? (
-              <FaceCapture
-                label="Capture New Face"
-                onCapture={desc => setEditFaceDescriptor(desc)}
-              />
+              <FaceCapture label="Capture New Face" onCapture={desc => setEditFaceDescriptor(desc)} />
             ) : (
               <div className="flex flex-col gap-3">
                 <div className="flex items-center gap-2 bg-muted/50 rounded-lg p-3">
                   <CheckCircle2 className="h-4 w-4 text-green-600" />
-                  <span className="text-sm">New face descriptor captured (128 points)</span>
+                  <span className="text-sm">New face descriptor captured</span>
                   <Button type="button" variant="ghost" size="sm" className="ml-auto" onClick={() => setEditFaceDescriptor(null)}>Retake</Button>
                 </div>
-                <Button
-                  className="w-full"
-                  onClick={() => editFaceTarget && saveFaceId.mutate({ userId: editFaceTarget.user_id, descriptor: editFaceDescriptor })}
-                  disabled={saveFaceId.isPending}
-                >
+                <Button className="w-full" onClick={() => editFaceTarget && saveFaceId.mutate({ userId: editFaceTarget.user_id, descriptor: editFaceDescriptor })} disabled={saveFaceId.isPending}>
                   {saveFaceId.isPending ? "Saving..." : "Save Face ID"}
                 </Button>
               </div>
             )}
             {editFaceTarget && (
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => saveFaceId.mutate({ userId: editFaceTarget.user_id, descriptor: null })}
-                disabled={saveFaceId.isPending}
-              >
-                Remove Face ID
-              </Button>
+              <Button variant="outline" className="w-full" onClick={() => saveFaceId.mutate({ userId: editFaceTarget.user_id, descriptor: null })} disabled={saveFaceId.isPending}>Remove Face ID</Button>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Profile dialog (super admin) */}
+      <Dialog open={!!editProfileTarget} onOpenChange={v => !v && setEditProfileTarget(null)}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Edit Profile — {editProfileTarget?.full_name || "User"}</DialogTitle></DialogHeader>
+          <form onSubmit={e => { e.preventDefault(); updateProfile.mutate(editProfileTarget.user_id); }} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label>Full Name</Label>
+              <Input value={editForm.full_name} onChange={e => setEditForm(f => ({ ...f, full_name: e.target.value }))} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Gender</Label>
+              <Select value={editForm.gender} onValueChange={v => setEditForm(f => ({ ...f, gender: v }))}>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="male">Male</SelectItem>
+                  <SelectItem value="female">Female</SelectItem>
+                  <SelectItem value="other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Parent Email</Label>
+              <Input type="email" value={editForm.parent_email} onChange={e => setEditForm(f => ({ ...f, parent_email: e.target.value }))} />
+            </div>
+            <Button type="submit" className="w-full" disabled={updateProfile.isPending}>{updateProfile.isPending ? "Saving..." : "Save Changes"}</Button>
+          </form>
         </DialogContent>
       </Dialog>
 
       <Card>
         <CardContent className="p-0">
           <div className="divide-y">
-            {filtered.map(user => (
-              <div key={user.id} className="flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors">
-                <div className="flex items-center gap-3">
-                  <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary">
-                    {user.full_name?.charAt(0)?.toUpperCase() || "U"}
-                  </div>
-                  <div>
-                    <p className="font-medium text-sm">{user.full_name || "Unnamed"}</p>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <Badge variant="outline" className={`text-[10px] ${roleBadge(user.role)}`}>
-                        {user.role.replace("_", " ")}
-                      </Badge>
-                      {(user as any).face_id && (
-                        <Badge variant="outline" className="text-[10px] bg-accent/10 text-accent border-accent/20">
-                          <ScanFace className="h-2.5 w-2.5 mr-0.5" /> Face ID
-                        </Badge>
+            {filtered.map(user => {
+              const hasFace = !!(user as any).face_id;
+              const setupDone = !!(user as any).setup_completed;
+              return (
+                <div key={user.id} className="flex items-center justify-between px-4 py-3 hover:bg-muted/30 transition-colors">
+                  <div className="flex items-center gap-3">
+                    {/* Face avatar or initial */}
+                    <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary overflow-hidden">
+                      {hasFace ? (
+                        <ScanFace className="h-5 w-5 text-primary" />
+                      ) : (
+                        user.full_name?.charAt(0)?.toUpperCase() || "U"
                       )}
                     </div>
+                    <div>
+                      <p className="font-medium text-sm">{user.full_name || "Unnamed"}</p>
+                      <div className="flex items-center gap-1.5 mt-0.5">
+                        <Badge variant="outline" className={`text-[10px] ${roleBadge(user.role)}`}>
+                          {user.role.replace("_", " ")}
+                        </Badge>
+                        {hasFace && (
+                          <Badge variant="outline" className="text-[10px] bg-accent/10 text-accent border-accent/20">
+                            <ScanFace className="h-2.5 w-2.5 mr-0.5" /> Face ID
+                          </Badge>
+                        )}
+                        {!setupDone && (
+                          <Badge variant="outline" className="text-[10px] bg-warning/10 text-warning border-warning/20">
+                            Pending setup
+                          </Badge>
+                        )}
+                        {(user as any).gender && (
+                          <Badge variant="outline" className="text-[10px]">{(user as any).gender}</Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {isSuperAdmin && (
+                      <>
+                        <Button variant="ghost" size="sm" onClick={() => {
+                          setEditProfileTarget(user);
+                          setEditForm({ full_name: user.full_name || "", gender: (user as any).gender || "", parent_email: (user as any).parent_email || "" });
+                        }}>
+                          <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => { setEditFaceTarget({ user_id: user.user_id, full_name: user.full_name }); setEditFaceDescriptor(null); }}>
+                          <ScanFace className="h-3.5 w-3.5 mr-1" /> Face
+                        </Button>
+                      </>
+                    )}
+                    {user.role === "student" && isAdmin && (
+                      <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive"
+                        onClick={() => setExpelTarget({ user_id: user.user_id, full_name: user.full_name })}>
+                        <UserX className="h-3.5 w-3.5 mr-1" /> Expel
+                      </Button>
+                    )}
+                    {isSuperAdmin && (
+                      <>
+                        <Select value={user.role} onValueChange={(v: AppRole) => updateRole.mutate({ userId: user.user_id, roleId: user.role_id, newRole: v })}>
+                          <SelectTrigger className="w-36">
+                            <Shield className="h-3.5 w-3.5 mr-1.5" /><SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>{ROLES.map(r => <SelectItem key={r} value={r}>{r.replace("_", " ")}</SelectItem>)}</SelectContent>
+                        </Select>
+                        <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive h-8 w-8"
+                          onClick={() => { if (confirm(`Delete user "${user.full_name}"?`)) deleteUser.mutate(user.user_id); }}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  {isSuperAdmin && (
-                    <Button variant="ghost" size="sm" onClick={() => { setEditFaceTarget({ user_id: user.user_id, full_name: user.full_name }); setEditFaceDescriptor(null); }}>
-                      <ScanFace className="h-3.5 w-3.5 mr-1" /> Face
-                    </Button>
-                  )}
-                  {user.role === "student" && isAdmin && (
-                    <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive"
-                      onClick={() => setExpelTarget({ user_id: user.user_id, full_name: user.full_name })}>
-                      <UserX className="h-3.5 w-3.5 mr-1" /> Expel
-                    </Button>
-                  )}
-                  {isSuperAdmin && (
-                    <>
-                      <Select
-                        value={user.role}
-                        onValueChange={(v: AppRole) => updateRole.mutate({ userId: user.user_id, roleId: user.role_id, newRole: v })}
-                      >
-                        <SelectTrigger className="w-36">
-                          <Shield className="h-3.5 w-3.5 mr-1.5" />
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {ROLES.map(r => (
-                            <SelectItem key={r} value={r}>{r.replace("_", " ")}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Button variant="ghost" size="icon" className="text-destructive hover:text-destructive h-8 w-8"
-                        onClick={() => { if (confirm(`Delete user "${user.full_name}"? This removes all their data.`)) deleteUser.mutate(user.user_id); }}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </>
-                  )}
-                </div>
-              </div>
-            ))}
+              );
+            })}
             {filtered.length === 0 && (
               <div className="text-center py-8 text-muted-foreground text-sm">No users found</div>
             )}

@@ -15,6 +15,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isSuperAdmin: boolean;
   hasFaceId: boolean;
+  setupCompleted: boolean;
   faceVerificationPending: boolean;
   setFaceVerificationPending: (v: boolean) => void;
 }
@@ -22,6 +23,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType>({
   session: null, user: null, role: null, profile: null,
   loading: true, signOut: async () => {}, isAdmin: false, isSuperAdmin: false, hasFaceId: false,
+  setupCompleted: true,
   faceVerificationPending: false, setFaceVerificationPending: () => {},
 });
 
@@ -34,18 +36,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profile, setProfile] = useState<{ full_name: string; avatar_url: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [hasFaceId, setHasFaceId] = useState(false);
+  const [setupCompleted, setSetupCompleted] = useState(true);
   const [faceVerificationPending, setFaceVerificationPending] = useState(false);
 
   const fetchUserData = async (userId: string) => {
     try {
       const [{ data: roleData }, { data: profileData }] = await Promise.all([
         supabase.from("user_roles").select("role").eq("user_id", userId).maybeSingle(),
-        supabase.from("profiles").select("full_name, avatar_url, face_id").eq("user_id", userId).maybeSingle(),
+        supabase.from("profiles").select("full_name, avatar_url, face_id, setup_completed").eq("user_id", userId).maybeSingle(),
       ]);
       setRole(roleData?.role ?? "student");
       if (profileData) {
         setProfile({ full_name: profileData.full_name, avatar_url: profileData.avatar_url });
         setHasFaceId(!!profileData.face_id);
+        setSetupCompleted(!!(profileData as any).setup_completed);
       }
     } catch (err) {
       console.error("Error fetching user data:", err);
@@ -70,6 +74,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setRole(null);
         setProfile(null);
         setHasFaceId(false);
+        setSetupCompleted(true);
         setLoading(false);
       }
     });
@@ -94,11 +99,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   return (
     <AuthContext.Provider value={{
       session, user, role, profile, loading, signOut,
-      isAdmin, isSuperAdmin, hasFaceId,
+      isAdmin, isSuperAdmin, hasFaceId, setupCompleted,
       faceVerificationPending, setFaceVerificationPending,
     }}>
       {children}
     </AuthContext.Provider>
   );
 };
-
