@@ -23,8 +23,8 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
-  // For create_user, authenticate via JWT (super_admin only)
-  if (resource === "create_user" && method === "POST") {
+  // JWT-authenticated admin endpoints
+  if ((resource === "create_user" || resource === "invite_user") && method === "POST") {
     const authHeader = req.headers.get("authorization");
     if (!authHeader) return json({ error: "Missing authorization" }, 401);
 
@@ -34,9 +34,23 @@ Deno.serve(async (req) => {
     if (authErr || !caller) return json({ error: "Unauthorized" }, 401);
 
     const { data: roleData } = await supabase.from("user_roles").select("role").eq("user_id", caller.id).maybeSingle();
-    if (roleData?.role !== "super_admin") return json({ error: "Only super_admin can create users" }, 403);
+    if (roleData?.role !== "super_admin") return json({ error: "Only super_admin can manage users" }, 403);
 
     const body = await req.json();
+
+    // New invite flow — only requires email
+    if (resource === "invite_user") {
+      const { email } = body;
+      if (!email) return json({ error: "email required" }, 400);
+
+      const { data: inviteData, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(email, {
+        redirectTo: req.headers.get("origin") || undefined,
+      });
+      if (inviteErr) return json({ error: inviteErr.message }, 400);
+      return json({ data: { id: inviteData.user.id, email } }, 201);
+    }
+
+    // Legacy create_user (for backward compat / external API)
     const { email, password, full_name, role, face_id } = body;
     if (!email || !password) return json({ error: "email and password required" }, 400);
 

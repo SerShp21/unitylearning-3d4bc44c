@@ -1,15 +1,14 @@
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, LayoutDashboard, BookOpen, Calendar, Users, LogOut, ClipboardList, Award, FileText, Bot } from "lucide-react";
+import { GraduationCap, LayoutDashboard, BookOpen, Calendar, Users, LogOut, ClipboardList, FileText, Bot } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 
 const NAV_ITEMS = [
   { to: "/", icon: LayoutDashboard, label: "Home", shortLabel: "Home" },
   { to: "/classes", icon: BookOpen, label: "Classes", shortLabel: "Classes" },
   { to: "/timetable", icon: Calendar, label: "Timetable", shortLabel: "Schedule" },
-  { to: "/grades", icon: Award, label: "Grades", shortLabel: "Grades" },
-  { to: "/attendance", icon: ClipboardList, label: "Attendance", shortLabel: "Attend." },
+  { to: "/registry", icon: ClipboardList, label: "Registry", shortLabel: "Registry" },
   { to: "/lectures", icon: FileText, label: "Lectures", shortLabel: "Lectures" },
 ];
 

@@ -6,13 +6,13 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import AppLayout from "@/components/AppLayout";
 import Auth from "@/pages/Auth";
+import Onboarding from "@/pages/Onboarding";
 import FaceSetup from "@/pages/FaceSetup";
 import Dashboard from "@/pages/Dashboard";
 import Classes from "@/pages/Classes";
 import Timetable from "@/pages/Timetable";
 import UserManagement from "@/pages/UserManagement";
-import Grades from "@/pages/Grades";
-import Attendance from "@/pages/Attendance";
+import Registry from "@/pages/Registry";
 import Lectures from "@/pages/Lectures";
 import Robot from "@/pages/Robot";
 import NotFound from "./pages/NotFound";
@@ -20,17 +20,27 @@ import NotFound from "./pages/NotFound";
 const queryClient = new QueryClient();
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { session, loading, hasFaceId } = useAuth();
+  const { session, loading, hasFaceId, setupCompleted } = useAuth();
   if (loading) return <div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>;
   if (!session) return <Navigate to="/auth" replace />;
+  if (!setupCompleted) return <Navigate to="/onboarding" replace />;
   if (!hasFaceId) return <Navigate to="/setup-face" replace />;
   return <AppLayout>{children}</AppLayout>;
 };
 
-const FaceSetupRoute: React.FC = () => {
-  const { session, loading, hasFaceId } = useAuth();
+const OnboardingRoute: React.FC = () => {
+  const { session, loading, setupCompleted } = useAuth();
   if (loading) return <div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>;
   if (!session) return <Navigate to="/auth" replace />;
+  if (setupCompleted) return <Navigate to="/" replace />;
+  return <Onboarding />;
+};
+
+const FaceSetupRoute: React.FC = () => {
+  const { session, loading, hasFaceId, setupCompleted } = useAuth();
+  if (loading) return <div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>;
+  if (!session) return <Navigate to="/auth" replace />;
+  if (!setupCompleted) return <Navigate to="/onboarding" replace />;
   if (hasFaceId) return <Navigate to="/" replace />;
   return <FaceSetup />;
 };
@@ -38,7 +48,6 @@ const FaceSetupRoute: React.FC = () => {
 const AuthRoute: React.FC = () => {
   const { session, loading, faceVerificationPending } = useAuth();
   if (loading) return null;
-  // Don't redirect while face check is in progress (avoids flash + state loss)
   if (session && !faceVerificationPending) return <Navigate to="/" replace />;
   return <Auth />;
 };
@@ -52,15 +61,18 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/auth" element={<AuthRoute />} />
+            <Route path="/onboarding" element={<OnboardingRoute />} />
             <Route path="/setup-face" element={<FaceSetupRoute />} />
             <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
             <Route path="/classes" element={<ProtectedRoute><Classes /></ProtectedRoute>} />
             <Route path="/timetable" element={<ProtectedRoute><Timetable /></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />
-            <Route path="/grades" element={<ProtectedRoute><Grades /></ProtectedRoute>} />
-            <Route path="/attendance" element={<ProtectedRoute><Attendance /></ProtectedRoute>} />
+            <Route path="/registry" element={<ProtectedRoute><Registry /></ProtectedRoute>} />
             <Route path="/lectures" element={<ProtectedRoute><Lectures /></ProtectedRoute>} />
             <Route path="/robot" element={<ProtectedRoute><Robot /></ProtectedRoute>} />
+            {/* Redirect old routes */}
+            <Route path="/grades" element={<Navigate to="/registry" replace />} />
+            <Route path="/attendance" element={<Navigate to="/registry" replace />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

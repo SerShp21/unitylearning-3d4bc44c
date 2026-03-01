@@ -249,7 +249,10 @@ export type Database = {
           created_at: string
           face_id: string | null
           full_name: string
+          gender: string | null
           id: string
+          parent_email: string | null
+          setup_completed: boolean
           updated_at: string
           user_id: string
         }
@@ -258,7 +261,10 @@ export type Database = {
           created_at?: string
           face_id?: string | null
           full_name?: string
+          gender?: string | null
           id?: string
+          parent_email?: string | null
+          setup_completed?: boolean
           updated_at?: string
           user_id: string
         }
@@ -267,7 +273,10 @@ export type Database = {
           created_at?: string
           face_id?: string | null
           full_name?: string
+          gender?: string | null
           id?: string
+          parent_email?: string | null
+          setup_completed?: boolean
           updated_at?: string
           user_id?: string
         }
