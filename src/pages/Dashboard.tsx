@@ -36,8 +36,7 @@ const Dashboard = () => {
   const stats = [
     { label: "Classes", value: classCount, icon: BookOpen, to: "/classes", color: "text-primary bg-primary/10" },
     { label: "Schedule", value: timetableCount, icon: Calendar, to: "/timetable", color: "text-accent bg-accent/10" },
-    { label: "Grades", value: "—", icon: Award, to: "/grades", color: "text-warning bg-warning/10" },
-    { label: "Attendance", value: "—", icon: ClipboardList, to: "/attendance", color: "text-success bg-success/10" },
+    { label: "Registry", value: "—", icon: ClipboardList, to: "/registry", color: "text-warning bg-warning/10" },
     ...(isSuperAdmin ? [{ label: "Users", value: userCount, icon: Users, to: "/users", color: "text-destructive bg-destructive/10" }] : []),
   ];
 
