@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Plus, BookOpen, User, Users, Pencil, UserMinus, Trash2, GraduationCap } from "lucide-react";
+import { Plus, BookOpen, User, Users, Pencil, UserMinus, Trash2, GraduationCap, ScanFace } from "lucide-react";
 import { ClassBookInfo } from "@/components/ClassBookInfo";
 
 const Classes = () => {
@@ -67,12 +67,14 @@ const Classes = () => {
   const { data: profiles = [] } = useQuery({
     queryKey: ["all-profiles"],
     queryFn: async () => {
-      const { data } = await supabase.from("profiles").select("user_id, full_name");
+      const { data } = await supabase.from("profiles").select("user_id, full_name, face_id");
       return data ?? [];
     },
   });
 
   const profileMap = Object.fromEntries(profiles.map(p => [p.user_id, p.full_name]));
+  const profileFaceMap = Object.fromEntries(profiles.map(p => [p.user_id, !!(p as any).face_id]));
+
 
   const createClass = useMutation({
     mutationFn: async () => {
@@ -207,7 +209,16 @@ const Classes = () => {
                       <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Enrolled ({enrolled.length})</p>
                       {enrolled.map(e => (
                         <div key={e.id} className="flex items-center justify-between px-3 py-2.5 rounded-xl bg-muted/50 gap-2">
-                          <span className="text-sm truncate">{profileMap[e.student_id] || "Unnamed"}</span>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                              {profileFaceMap[e.student_id] ? (
+                                <ScanFace className="h-4 w-4 text-primary" />
+                              ) : (
+                                <span className="text-xs font-bold text-primary">{(profileMap[e.student_id] || "U").charAt(0).toUpperCase()}</span>
+                              )}
+                            </div>
+                            <span className="text-sm truncate">{profileMap[e.student_id] || "Unnamed"}</span>
+                          </div>
                           <Button size="sm" variant="ghost" className="text-destructive hover:text-destructive h-7 px-2 shrink-0"
                             onClick={() => unenrollStudent.mutate(e.id)}>
                             <UserMinus className="h-3.5 w-3.5 mr-1" /> Remove

@@ -41,7 +41,7 @@ const Registry = () => {
 
   const { data: profiles = [] } = useQuery({
     queryKey: ["all-profiles"],
-    queryFn: async () => { const { data } = await supabase.from("profiles").select("user_id, full_name"); return data ?? []; },
+    queryFn: async () => { const { data } = await supabase.from("profiles").select("user_id, full_name, parent_email, face_id"); return data ?? []; },
   });
 
   const { data: enrollments = [] } = useQuery({
@@ -79,6 +79,8 @@ const Registry = () => {
   const classMap = Object.fromEntries(classes.map(c => [c.id, c.name]));
   const timetableMap = Object.fromEntries(timetableEntries.map(t => [t.id, t]));
 
+  const profileFullMap = Object.fromEntries(profiles.map(p => [p.user_id, p]));
+
   const studentsInClass = selectedClass
     ? enrollments.filter(e => e.class_id === selectedClass).map(e => ({ user_id: e.student_id, full_name: profileMap[e.student_id] || "Unknown" }))
     : [];
@@ -87,6 +89,20 @@ const Registry = () => {
     `${DAYS[entry.day_of_week] ?? "?"} ${entry.start_time?.slice(0, 5)}-${entry.end_time?.slice(0, 5)}${entry.room ? ` (${entry.room})` : ""}`;
 
   const entriesForClass = selectedClass ? timetableEntries.filter(e => e.class_id === selectedClass) : [];
+
+  // Send parent notification (fire and forget)
+  const notifyParent = async (type: string, studentId: string, details: Record<string, any>) => {
+    const profile = profileFullMap[studentId];
+    const parentEmail = (profile as any)?.parent_email;
+    if (!parentEmail) return;
+    try {
+      await supabase.functions.invoke("notify-parent", {
+        body: { type, parent_email: parentEmail, student_name: profile?.full_name || "Student", details },
+      });
+    } catch (err) {
+      console.error("Failed to send parent notification:", err);
+    }
+  };
 
   // Mutations
   const markAttendance = useMutation({
@@ -98,6 +114,10 @@ const Registry = () => {
       } else {
         const { error } = await supabase.from("attendance").insert({ class_id: selectedClass, student_id: studentId, date: selectedDate, status, marked_by: user!.id });
         if (error) throw error;
+      }
+      // Notify parent for absence/late
+      if (status === "absent" || status === "late") {
+        notifyParent("absence", studentId, { class_name: classMap[selectedClass] || "", date: selectedDate, status });
       }
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["attendance"] }); toast.success("Attendance updated!"); },
@@ -119,6 +139,11 @@ const Registry = () => {
         notes: gradeForm.notes || null, graded_by: user!.id,
       });
       if (error) throw error;
+      // Notify parent about new grade
+      notifyParent("grade", gradeForm.student_id, {
+        title: gradeForm.title, score: gradeForm.score, max_score: gradeForm.max_score,
+        class_name: classMap[selectedClass] || "",
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["grades"] });
