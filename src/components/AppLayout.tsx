@@ -3,6 +3,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { GraduationCap, LayoutDashboard, BookOpen, Calendar, Users, LogOut, ClipboardList, FileText, Bot } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import NotificationBell from "@/components/NotificationBell";
 
 const NAV_ITEMS = [
   { to: "/", icon: LayoutDashboard, label: "Home", shortLabel: "Home" },
@@ -70,6 +71,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         </nav>
         <div className="border-t border-primary-foreground/20 pt-3 mt-3">
           <div className="flex items-center gap-2 mb-2 px-1">
+            <NotificationBell />
             <div className="h-8 w-8 rounded-full bg-primary-foreground/20 flex items-center justify-center text-xs font-bold shrink-0">
               {profile?.full_name?.charAt(0)?.toUpperCase() || "U"}
             </div>
@@ -96,6 +98,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
             <span className="font-bold text-sm">UnityClass</span>
           </div>
           <div className="flex items-center gap-1.5">
+            <NotificationBell />
             <Badge variant="secondary" className={`text-[9px] px-1.5 py-0 ${roleBadgeColor}`}>
               {role?.replace("_", " ") ?? "student"}
             </Badge>

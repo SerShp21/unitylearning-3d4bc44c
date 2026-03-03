@@ -90,17 +90,18 @@ const Registry = () => {
 
   const entriesForClass = selectedClass ? timetableEntries.filter(e => e.class_id === selectedClass) : [];
 
-  // Send parent notification (fire and forget)
-  const notifyParent = async (type: string, studentId: string, details: Record<string, any>) => {
-    const profile = profileFullMap[studentId];
-    const parentEmail = (profile as any)?.parent_email;
-    if (!parentEmail) return;
+  // Create in-app notification for student (and parent placeholder)
+  const createNotification = async (type: string, studentId: string, title: string, message: string, metadata: Record<string, any> = {}) => {
     try {
-      await supabase.functions.invoke("notify-parent", {
-        body: { type, parent_email: parentEmail, student_name: profile?.full_name || "Student", details },
+      await supabase.from("notifications").insert({
+        user_id: studentId,
+        type,
+        title,
+        message,
+        metadata,
       });
     } catch (err) {
-      console.error("Failed to send parent notification:", err);
+      console.error("Failed to create notification:", err);
     }
   };
 
@@ -115,9 +116,10 @@ const Registry = () => {
         const { error } = await supabase.from("attendance").insert({ class_id: selectedClass, student_id: studentId, date: selectedDate, status, marked_by: user!.id });
         if (error) throw error;
       }
-      // Notify parent for absence/late
+      // Notify student in-app for absence/late
       if (status === "absent" || status === "late") {
-        notifyParent("absence", studentId, { class_name: classMap[selectedClass] || "", date: selectedDate, status });
+        const className = classMap[selectedClass] || "Class";
+        createNotification("absence", studentId, `Attendance: ${status}`, `You were marked as ${status} in ${className} on ${selectedDate}`, { class_name: className, date: selectedDate, status });
       }
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["attendance"] }); toast.success("Attendance updated!"); },
@@ -139,10 +141,10 @@ const Registry = () => {
         notes: gradeForm.notes || null, graded_by: user!.id,
       });
       if (error) throw error;
-      // Notify parent about new grade
-      notifyParent("grade", gradeForm.student_id, {
-        title: gradeForm.title, score: gradeForm.score, max_score: gradeForm.max_score,
-        class_name: classMap[selectedClass] || "",
+      // Notify student in-app about new grade
+      const className = classMap[selectedClass] || "Class";
+      createNotification("grade", gradeForm.student_id, `New Grade: ${gradeForm.title}`, `You scored ${gradeForm.score}/${gradeForm.max_score} in ${className}`, {
+        title: gradeForm.title, score: gradeForm.score, max_score: gradeForm.max_score, class_name: className,
       });
     },
     onSuccess: () => {
