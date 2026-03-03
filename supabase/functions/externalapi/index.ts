@@ -43,8 +43,10 @@ Deno.serve(async (req) => {
       const { email } = body;
       if (!email) return json({ error: "email required" }, 400);
 
+      // Use the published app URL so the magic link redirects correctly
+      const redirectTo = req.headers.get("origin") || "https://unitylearning.lovable.app";
       const { data: inviteData, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(email, {
-        redirectTo: req.headers.get("origin") || undefined,
+        redirectTo,
       });
       if (inviteErr) return json({ error: inviteErr.message }, 400);
       return json({ data: { id: inviteData.user.id, email } }, 201);
