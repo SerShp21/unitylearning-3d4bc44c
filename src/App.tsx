@@ -15,31 +15,35 @@ import UserManagement from "@/pages/UserManagement";
 import Registry from "@/pages/Registry";
 import Lectures from "@/pages/Lectures";
 import Robot from "@/pages/Robot";
+import ParentDashboard from "@/pages/ParentDashboard";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { session, loading, hasFaceId, setupCompleted } = useAuth();
+  const { session, loading, hasFaceId, setupCompleted, role } = useAuth();
   if (loading) return <div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>;
   if (!session) return <Navigate to="/auth" replace />;
+  // Parents skip onboarding and face setup
+  if (role === "parent") return <AppLayout>{children}</AppLayout>;
   if (!setupCompleted) return <Navigate to="/onboarding" replace />;
   if (!hasFaceId) return <Navigate to="/setup-face" replace />;
   return <AppLayout>{children}</AppLayout>;
 };
 
 const OnboardingRoute: React.FC = () => {
-  const { session, loading, setupCompleted } = useAuth();
+  const { session, loading, setupCompleted, role } = useAuth();
   if (loading) return <div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>;
   if (!session) return <Navigate to="/auth" replace />;
-  if (setupCompleted) return <Navigate to="/" replace />;
+  if (role === "parent" || setupCompleted) return <Navigate to="/" replace />;
   return <Onboarding />;
 };
 
 const FaceSetupRoute: React.FC = () => {
-  const { session, loading, hasFaceId, setupCompleted } = useAuth();
+  const { session, loading, hasFaceId, setupCompleted, role } = useAuth();
   if (loading) return <div className="flex min-h-screen items-center justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" /></div>;
   if (!session) return <Navigate to="/auth" replace />;
+  if (role === "parent") return <Navigate to="/" replace />;
   if (!setupCompleted) return <Navigate to="/onboarding" replace />;
   if (hasFaceId) return <Navigate to="/" replace />;
   return <FaceSetup />;
@@ -50,6 +54,13 @@ const AuthRoute: React.FC = () => {
   if (loading) return null;
   if (session && !faceVerificationPending) return <Navigate to="/" replace />;
   return <Auth />;
+};
+
+// Redirect parents to their dashboard, others to main dashboard
+const HomeRoute: React.FC = () => {
+  const { role } = useAuth();
+  if (role === "parent") return <ParentDashboard />;
+  return <Dashboard />;
 };
 
 const App = () => (
@@ -63,7 +74,8 @@ const App = () => (
             <Route path="/auth" element={<AuthRoute />} />
             <Route path="/onboarding" element={<OnboardingRoute />} />
             <Route path="/setup-face" element={<FaceSetupRoute />} />
-            <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/" element={<ProtectedRoute><HomeRoute /></ProtectedRoute>} />
+            <Route path="/parent" element={<ProtectedRoute><ParentDashboard /></ProtectedRoute>} />
             <Route path="/classes" element={<ProtectedRoute><Classes /></ProtectedRoute>} />
             <Route path="/timetable" element={<ProtectedRoute><Timetable /></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute><UserManagement /></ProtectedRoute>} />

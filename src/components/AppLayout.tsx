@@ -13,16 +13,24 @@ const NAV_ITEMS = [
   { to: "/lectures", icon: FileText, label: "Lectures", shortLabel: "Lectures" },
 ];
 
+const PARENT_NAV_ITEMS = [
+  { to: "/", icon: LayoutDashboard, label: "Dashboard", shortLabel: "Home" },
+];
+
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { signOut, profile, role, isSuperAdmin, isAdmin } = useAuth();
   const isTeacherOrAdmin = isAdmin || role === "teacher";
+  const isParent = role === "parent";
   const location = useLocation();
+
+  const navItems = isParent ? PARENT_NAV_ITEMS : NAV_ITEMS;
 
   const roleBadgeColor = {
     super_admin: "bg-destructive text-destructive-foreground",
     admin: "bg-primary text-primary-foreground",
     teacher: "bg-accent text-accent-foreground",
     student: "bg-secondary text-secondary-foreground",
+    parent: "bg-orange-200 text-orange-900 dark:bg-orange-900/40 dark:text-orange-300",
   }[role ?? "student"];
 
   return (
@@ -34,7 +42,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           <span className="text-lg font-bold font-['Space_Grotesk']">UnityClass</span>
         </div>
         <nav className="flex-1 space-y-0.5">
-          {NAV_ITEMS.map(item => (
+          {navItems.map(item => (
             <Link
               key={item.to}
               to={item.to}
@@ -46,7 +54,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               {item.label}
             </Link>
           ))}
-          {isTeacherOrAdmin && (
+          {!isParent && isTeacherOrAdmin && (
             <Link
               to="/robot"
               className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
@@ -57,7 +65,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               Robot
             </Link>
           )}
-          {isSuperAdmin && (
+          {!isParent && isSuperAdmin && (
             <Link
               to="/users"
               className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm transition-colors ${
@@ -111,7 +119,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
 
         {/* Mobile bottom nav - fixed */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-card border-t flex items-stretch z-50 safe-area-bottom">
-          {NAV_ITEMS.map(item => {
+          {navItems.map(item => {
             const active = location.pathname === item.to;
             return (
               <Link
@@ -126,7 +134,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               </Link>
             );
           })}
-          {isTeacherOrAdmin && (
+          {!isParent && isTeacherOrAdmin && (
             <Link
               to="/robot"
               className={`flex-1 flex flex-col items-center justify-center py-1.5 gap-0.5 transition-colors ${
@@ -137,7 +145,7 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
               <span className="text-[10px] leading-tight font-medium">Robot</span>
             </Link>
           )}
-          {isSuperAdmin && (
+          {!isParent && isSuperAdmin && (
             <Link
               to="/users"
               className={`flex-1 flex flex-col items-center justify-center py-1.5 gap-0.5 transition-colors ${

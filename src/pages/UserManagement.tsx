@@ -15,7 +15,7 @@ import type { Enums } from "@/integrations/supabase/types";
 import { FaceCapture } from "@/components/FaceCapture";
 
 type AppRole = Enums<"app_role">;
-const ROLES: AppRole[] = ["super_admin", "admin", "teacher", "student"];
+const ROLES: AppRole[] = ["super_admin", "admin", "teacher", "student", "parent"];
 
 const UserManagement = () => {
   const { isSuperAdmin, isAdmin } = useAuth();
@@ -154,6 +154,7 @@ const UserManagement = () => {
       admin: "bg-primary/10 text-primary border-primary/20",
       teacher: "bg-accent/10 text-accent border-accent/20",
       student: "bg-secondary text-secondary-foreground",
+      parent: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
     };
     return colors[role];
   };
