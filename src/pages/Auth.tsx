@@ -33,11 +33,17 @@ const Auth = () => {
       }
 
       // Check if this user has a face_id enrolled
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("face_id")
-        .eq("user_id", data.user.id)
-        .maybeSingle();
+      const [{ data: profile }, { data: roleData }] = await Promise.all([
+        supabase.from("profiles").select("face_id").eq("user_id", data.user.id).maybeSingle(),
+        supabase.from("user_roles").select("role").eq("user_id", data.user.id).maybeSingle(),
+      ]);
+
+      // Parents skip face verification entirely
+      if (roleData?.role === "parent") {
+        setFaceVerificationPending(false);
+        toast.success("Welcome back!");
+        return;
+      }
 
       if (profile?.face_id) {
         // Has face enrolled → sign out and require face verification as step 2
