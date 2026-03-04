@@ -41,7 +41,7 @@ const Registry = () => {
 
   const { data: profiles = [] } = useQuery({
     queryKey: ["all-profiles"],
-    queryFn: async () => { const { data } = await supabase.from("profiles").select("user_id, full_name, parent_email, face_id"); return data ?? []; },
+    queryFn: async () => { const { data } = await supabase.from("profiles").select("user_id, full_name, parent_email, parent_phone, face_id"); return data ?? []; },
   });
 
   const { data: enrollments = [] } = useQuery({
@@ -80,6 +80,20 @@ const Registry = () => {
   const timetableMap = Object.fromEntries(timetableEntries.map(t => [t.id, t]));
 
   const profileFullMap = Object.fromEntries(profiles.map(p => [p.user_id, p]));
+
+  // Send SMS to parent if parent_phone exists
+  const notifyParentSms = async (type: string, studentId: string, details: Record<string, any>) => {
+    const profile = profileFullMap[studentId];
+    const parentPhone = (profile as any)?.parent_phone;
+    if (!parentPhone) return;
+    try {
+      await supabase.functions.invoke("notify-parent-sms", {
+        body: { type, parent_phone: parentPhone, student_name: profile?.full_name || "Student", details },
+      });
+    } catch (err) {
+      console.error("SMS notification failed:", err);
+    }
+  };
 
   const studentsInClass = selectedClass
     ? enrollments.filter(e => e.class_id === selectedClass).map(e => ({ user_id: e.student_id, full_name: profileMap[e.student_id] || "Unknown" }))
@@ -120,6 +134,7 @@ const Registry = () => {
       if (status === "absent" || status === "late") {
         const className = classMap[selectedClass] || "Class";
         createNotification("absence", studentId, `Attendance: ${status}`, `You were marked as ${status} in ${className} on ${selectedDate}`, { class_name: className, date: selectedDate, status });
+        notifyParentSms("absence", studentId, { class_name: className, date: selectedDate, status });
       }
     },
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["attendance"] }); toast.success("Attendance updated!"); },
@@ -143,9 +158,9 @@ const Registry = () => {
       if (error) throw error;
       // Notify student in-app about new grade
       const className = classMap[selectedClass] || "Class";
-      createNotification("grade", gradeForm.student_id, `New Grade: ${gradeForm.title}`, `You scored ${gradeForm.score}/${gradeForm.max_score} in ${className}`, {
-        title: gradeForm.title, score: gradeForm.score, max_score: gradeForm.max_score, class_name: className,
-      });
+      const gradeDetails = { title: gradeForm.title, score: gradeForm.score, max_score: gradeForm.max_score, class_name: className };
+      createNotification("grade", gradeForm.student_id, `New Grade: ${gradeForm.title}`, `You scored ${gradeForm.score}/${gradeForm.max_score} in ${className}`, gradeDetails);
+      notifyParentSms("grade", gradeForm.student_id, gradeDetails);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["grades"] });
