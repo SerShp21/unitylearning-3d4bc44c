@@ -285,6 +285,7 @@ export type Database = {
           gender: string | null
           id: string
           parent_email: string | null
+          parent_phone: string | null
           setup_completed: boolean
           updated_at: string
           user_id: string
@@ -297,6 +298,7 @@ export type Database = {
           gender?: string | null
           id?: string
           parent_email?: string | null
+          parent_phone?: string | null
           setup_completed?: boolean
           updated_at?: string
           user_id: string
@@ -309,6 +311,7 @@ export type Database = {
           gender?: string | null
           id?: string
           parent_email?: string | null
+          parent_phone?: string | null
           setup_completed?: boolean
           updated_at?: string
           user_id?: string

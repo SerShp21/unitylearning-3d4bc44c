@@ -15,6 +15,7 @@ const Onboarding = () => {
   const [fullName, setFullName] = useState("");
   const [gender, setGender] = useState("");
   const [parentEmail, setParentEmail] = useState("");
+  const [parentPhone, setParentPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [faceDescriptor, setFaceDescriptor] = useState<number[] | null>(null);
@@ -50,9 +51,10 @@ const Onboarding = () => {
           full_name: fullName.trim(),
           gender,
           parent_email: parentEmail.trim(),
+          parent_phone: parentPhone.trim() || null,
           face_id: JSON.stringify(faceDescriptor),
           setup_completed: true,
-        })
+        } as any)
         .eq("user_id", user.id);
 
       if (profileErr) throw profileErr;
@@ -115,6 +117,19 @@ const Onboarding = () => {
                 required
                 maxLength={255}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="parentPhone">Parent Phone Number (for SMS alerts)</Label>
+              <Input
+                id="parentPhone"
+                type="tel"
+                value={parentPhone}
+                onChange={e => setParentPhone(e.target.value)}
+                placeholder="+1234567890"
+                maxLength={20}
+              />
+              <p className="text-xs text-muted-foreground">Include country code (e.g. +1 for US). Optional.</p>
             </div>
 
             <div className="space-y-2">
