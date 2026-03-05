@@ -86,16 +86,11 @@ const UserManagement = () => {
       if (!response.ok) throw new Error(data.error || "Failed to invite user");
       return data;
     },
-    onSuccess: (data: any) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["all-users"] });
       setInviteEmail("");
-      if (data?.data?.invite_link) {
-        setInviteLink(data.data.invite_link);
-        toast.success("User created! Share the invite link with the student.");
-      } else {
-        setCreateOpen(false);
-        toast.success("Invitation sent!");
-      }
+      setCreateOpen(false);
+      toast.success("Invitation sent! The student will receive an email to set up their account.");
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -180,26 +175,17 @@ const UserManagement = () => {
             </DialogTrigger>
             <DialogContent className="max-w-sm">
               <DialogHeader><DialogTitle>Invite New User</DialogTitle></DialogHeader>
-              {inviteLink ? (
-                <div className="space-y-4">
-                  <p className="text-sm text-muted-foreground">User created! Share this link with the student:</p>
-                  <div className="bg-muted rounded-lg p-3 break-all text-xs font-mono">{inviteLink}</div>
-                  <Button className="w-full" onClick={() => { navigator.clipboard.writeText(inviteLink); toast.success("Link copied!"); }}>Copy Link</Button>
-                  <Button variant="outline" className="w-full" onClick={() => { setInviteLink(""); setCreateOpen(false); }}>Done</Button>
+              <form onSubmit={e => { e.preventDefault(); inviteUser.mutate(); }} className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Student Email</Label>
+                  <Input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="student@example.com" required />
+                  <p className="text-xs text-muted-foreground">The student will receive an email with a link to complete their account setup.</p>
                 </div>
-              ) : (
-                <form onSubmit={e => { e.preventDefault(); inviteUser.mutate(); }} className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Student Email</Label>
-                    <Input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="student@example.com" required />
-                    <p className="text-xs text-muted-foreground">A unique invite link will be generated. Share it with the student to complete their account setup.</p>
-                  </div>
-                  <Button type="submit" className="w-full" disabled={inviteUser.isPending}>
-                    <Mail className="h-4 w-4 mr-2" />
-                    {inviteUser.isPending ? "Creating..." : "Create & Get Link"}
-                  </Button>
-                </form>
-              )}
+                <Button type="submit" className="w-full" disabled={inviteUser.isPending}>
+                  <Mail className="h-4 w-4 mr-2" />
+                  {inviteUser.isPending ? "Sending..." : "Send Invitation"}
+                </Button>
+              </form>
             </DialogContent>
           </Dialog>
         )}
