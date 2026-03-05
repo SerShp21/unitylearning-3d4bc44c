@@ -276,6 +276,39 @@ export type Database = {
         }
         Relationships: []
       }
+      parent_invites: {
+        Row: {
+          accepted_at: string | null
+          created_at: string
+          id: string
+          parent_phone: string
+          parent_user_id: string | null
+          status: string
+          student_id: string
+          token: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          created_at?: string
+          id?: string
+          parent_phone: string
+          parent_user_id?: string | null
+          status?: string
+          student_id: string
+          token?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          created_at?: string
+          id?: string
+          parent_phone?: string
+          parent_user_id?: string | null
+          status?: string
+          student_id?: string
+          token?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
