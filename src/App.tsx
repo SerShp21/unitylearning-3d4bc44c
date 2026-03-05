@@ -16,6 +16,7 @@ import Registry from "@/pages/Registry";
 import Lectures from "@/pages/Lectures";
 import Robot from "@/pages/Robot";
 import ParentDashboard from "@/pages/ParentDashboard";
+import ParentSignup from "@/pages/ParentSignup";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -72,6 +73,7 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/auth" element={<AuthRoute />} />
+            <Route path="/parent-signup" element={<ParentSignup />} />
             <Route path="/onboarding" element={<OnboardingRoute />} />
             <Route path="/setup-face" element={<FaceSetupRoute />} />
             <Route path="/" element={<ProtectedRoute><HomeRoute /></ProtectedRoute>} />

@@ -1,3 +1,5 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
 Deno.serve(async (req) => {
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -21,29 +23,15 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { type, parent_phone, student_name, details } = body;
+    const { student_id, parent_phone, student_name, token, app_url } = body;
 
-    if (!parent_phone || !student_name || !type) {
-      return json({ error: "type, parent_phone, and student_name are required" }, 400);
+    if (!student_id || !parent_phone || !token) {
+      return json({ error: "student_id, parent_phone, and token are required" }, 400);
     }
 
-    let message = "";
+    const inviteUrl = `${app_url || "https://unitylearning.lovable.app"}/parent-signup?token=${token}`;
 
-    switch (type) {
-      case "grade": {
-        const { title, score, max_score, class_name } = details || {};
-        const pct = score && max_score ? Math.round((score / max_score) * 100) : null;
-        message = `📝 Grade Update for ${student_name}:\n${title || "Assignment"} — ${score ?? "N/A"}/${max_score ?? "N/A"}${pct ? ` (${pct}%)` : ""}\nClass: ${class_name || "N/A"}\n— UnityClass`;
-        break;
-      }
-      case "absence": {
-        const { class_name, date, status } = details || {};
-        message = `⚠️ Attendance Alert for ${student_name}:\nStatus: ${(status || "absent").toUpperCase()}\nClass: ${class_name || "N/A"}\nDate: ${date || "today"}\n— UnityClass`;
-        break;
-      }
-      default:
-        return json({ error: `Unknown notification type: ${type}` }, 400);
-    }
+    const message = `📚 UnityClass: ${student_name || "Your child"} has added you as their parent. Create your parent account to track their grades & attendance:\n${inviteUrl}`;
 
     const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`;
     const authStr = btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`);
@@ -69,7 +57,7 @@ Deno.serve(async (req) => {
 
     return json({ success: true, sid: result.sid });
   } catch (err) {
-    console.error("notify-parent-sms error:", err);
+    console.error("invite-parent error:", err);
     return json({ error: (err as Error).message }, 500);
   }
 });

@@ -14,7 +14,6 @@ const Onboarding = () => {
   const { user } = useAuth();
   const [fullName, setFullName] = useState("");
   const [gender, setGender] = useState("");
-  const [parentEmail, setParentEmail] = useState("");
   const [parentPhone, setParentPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -25,41 +24,50 @@ const Onboarding = () => {
     e.preventDefault();
     if (!user) return;
 
-    if (password !== confirmPassword) {
-      toast.error("Passwords do not match");
-      return;
-    }
-    if (password.length < 6) {
-      toast.error("Password must be at least 6 characters");
-      return;
-    }
-    if (!faceDescriptor) {
-      toast.error("Face ID is required. Please capture your face.");
-      return;
-    }
+    if (password !== confirmPassword) { toast.error("Passwords do not match"); return; }
+    if (password.length < 6) { toast.error("Password must be at least 6 characters"); return; }
+    if (!faceDescriptor) { toast.error("Face ID is required. Please capture your face."); return; }
+    if (!parentPhone.trim()) { toast.error("Parent phone number is required."); return; }
 
     setSaving(true);
     try {
-      // Set the user's password
+      // Set password
       const { error: pwErr } = await supabase.auth.updateUser({ password });
       if (pwErr) throw pwErr;
 
-      // Update profile with all info
+      // Update profile — no parent_email, only phone
       const { error: profileErr } = await supabase
         .from("profiles")
         .update({
           full_name: fullName.trim(),
           gender,
-          parent_email: parentEmail.trim(),
-          parent_phone: parentPhone.trim() || null,
+          parent_phone: parentPhone.trim(),
           face_id: JSON.stringify(faceDescriptor),
           setup_completed: true,
         } as any)
         .eq("user_id", user.id);
-
       if (profileErr) throw profileErr;
 
-      toast.success("Account setup complete! Welcome to UnityClass!");
+      // Create parent invite & send SMS
+      const { data: inviteData, error: inviteErr } = await supabase
+        .from("parent_invites")
+        .insert({ student_id: user.id, parent_phone: parentPhone.trim() } as any)
+        .select("token")
+        .single();
+
+      if (!inviteErr && inviteData) {
+        await supabase.functions.invoke("invite-parent", {
+          body: {
+            student_id: user.id,
+            parent_phone: parentPhone.trim(),
+            student_name: fullName.trim(),
+            token: inviteData.token,
+            app_url: window.location.origin,
+          },
+        });
+      }
+
+      toast.success("Account setup complete! Your parent will receive an invite SMS.");
       window.location.href = "/";
     } catch (err: any) {
       toast.error(err.message || "Failed to complete setup");
@@ -84,14 +92,7 @@ const Onboarding = () => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="fullName">Full Name</Label>
-              <Input
-                id="fullName"
-                value={fullName}
-                onChange={e => setFullName(e.target.value)}
-                placeholder="Your full name"
-                required
-                maxLength={100}
-              />
+              <Input id="fullName" value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Your full name" required maxLength={100} />
             </div>
 
             <div className="space-y-2">
@@ -107,55 +108,19 @@ const Onboarding = () => {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="parentEmail">Parent Email</Label>
-              <Input
-                id="parentEmail"
-                type="email"
-                value={parentEmail}
-                onChange={e => setParentEmail(e.target.value)}
-                placeholder="parent@example.com"
-                required
-                maxLength={255}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="parentPhone">Parent Phone Number (for SMS alerts)</Label>
-              <Input
-                id="parentPhone"
-                type="tel"
-                value={parentPhone}
-                onChange={e => setParentPhone(e.target.value)}
-                placeholder="+1234567890"
-                maxLength={20}
-              />
-              <p className="text-xs text-muted-foreground">Include country code (e.g. +1 for US). Optional.</p>
+              <Label htmlFor="parentPhone">Parent Phone Number</Label>
+              <Input id="parentPhone" type="tel" value={parentPhone} onChange={e => setParentPhone(e.target.value)} placeholder="+1234567890" required maxLength={20} />
+              <p className="text-xs text-muted-foreground">Include country code (e.g. +1 for US). Your parent will receive an SMS invite to create their own account.</p>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="password">Set Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="At least 6 characters"
-                required
-                minLength={6}
-              />
+              <Input id="password" type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="At least 6 characters" required minLength={6} />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="confirmPassword">Confirm Password</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={e => setConfirmPassword(e.target.value)}
-                placeholder="Repeat your password"
-                required
-                minLength={6}
-              />
+              <Input id="confirmPassword" type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} placeholder="Repeat your password" required minLength={6} />
             </div>
 
             {/* Face ID capture */}
@@ -169,10 +134,7 @@ const Onboarding = () => {
                 )}
               </div>
               {!faceDescriptor ? (
-                <FaceCapture
-                  label="Capture Face"
-                  onCapture={desc => setFaceDescriptor(desc)}
-                />
+                <FaceCapture label="Capture Face" onCapture={desc => setFaceDescriptor(desc)} />
               ) : (
                 <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3">
                   <span className="text-sm text-muted-foreground">Face descriptor stored (128 points)</span>
@@ -181,7 +143,7 @@ const Onboarding = () => {
               )}
             </div>
 
-            <Button type="submit" className="w-full" disabled={saving || !gender || !faceDescriptor}>
+            <Button type="submit" className="w-full" disabled={saving || !gender || !faceDescriptor || !parentPhone.trim()}>
               {saving ? "Setting up..." : "Complete Setup"}
             </Button>
           </form>

@@ -3,9 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bell, BookOpen, ClipboardList, GraduationCap, User } from "lucide-react";
+import { User, TrendingUp, AlertTriangle, Clock, BookOpen, ClipboardList, Bell } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
   present: "bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300",
@@ -17,8 +16,7 @@ const STATUS_COLORS: Record<string, string> = {
 const ParentDashboard = () => {
   const { user } = useAuth();
 
-  // Find students linked to this parent via parent_email
-  const { data: linkedStudents = [], isLoading: loadingStudents } = useQuery({
+  const { data: linkedStudents = [], isLoading } = useQuery({
     queryKey: ["parent-linked-students", user?.email],
     queryFn: async () => {
       if (!user?.email) return [];
@@ -33,64 +31,40 @@ const ParentDashboard = () => {
 
   const studentIds = linkedStudents.map(s => s.user_id);
 
-  // Fetch grades for linked students
   const { data: grades = [] } = useQuery({
     queryKey: ["parent-grades", studentIds],
     queryFn: async () => {
       if (!studentIds.length) return [];
-      const { data } = await supabase
-        .from("grades")
-        .select("*, classes(name)")
-        .in("student_id", studentIds)
-        .order("created_at", { ascending: false })
-        .limit(50);
+      const { data } = await supabase.from("grades").select("*, classes(name)")
+        .in("student_id", studentIds).order("created_at", { ascending: false }).limit(30);
       return data ?? [];
     },
     enabled: studentIds.length > 0,
   });
 
-  // Fetch attendance for linked students
   const { data: attendance = [] } = useQuery({
     queryKey: ["parent-attendance", studentIds],
     queryFn: async () => {
       if (!studentIds.length) return [];
-      const { data } = await supabase
-        .from("attendance")
-        .select("*, classes(name)")
-        .in("student_id", studentIds)
-        .order("date", { ascending: false })
-        .limit(50);
+      const { data } = await supabase.from("attendance").select("*, classes(name)")
+        .in("student_id", studentIds).order("date", { ascending: false }).limit(30);
       return data ?? [];
     },
     enabled: studentIds.length > 0,
   });
 
-  // Fetch notifications for this parent
   const { data: notifications = [] } = useQuery({
     queryKey: ["parent-notifications", user?.id],
     queryFn: async () => {
       if (!user?.id) return [];
-      const { data } = await supabase
-        .from("notifications")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(30);
+      const { data } = await supabase.from("notifications").select("*")
+        .eq("user_id", user.id).order("created_at", { ascending: false }).limit(20);
       return data ?? [];
     },
     enabled: !!user?.id,
   });
 
-  const studentNameMap = Object.fromEntries(linkedStudents.map(s => [s.user_id, s.full_name]));
-
-  const getScoreColor = (score: number, max: number) => {
-    const pct = (score / max) * 100;
-    if (pct >= 90) return "text-green-600";
-    if (pct >= 70) return "text-yellow-600";
-    return "text-red-600";
-  };
-
-  if (loadingStudents) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -103,14 +77,14 @@ const ParentDashboard = () => {
       <div className="flex flex-col items-center justify-center py-20 space-y-4">
         <User className="h-16 w-16 text-muted-foreground" />
         <h2 className="text-xl font-semibold">No Linked Students</h2>
-        <p className="text-muted-foreground text-center max-w-md">
-          No students are linked to your account yet. Ask the school administrator to set your email ({user?.email}) as the parent email in the student's profile.
+        <p className="text-muted-foreground text-center max-w-md text-sm">
+          No students are linked to your account yet. Your child needs to add your phone number during their account setup.
         </p>
       </div>
     );
   }
 
-  // Summary stats
+  const studentNameMap = Object.fromEntries(linkedStudents.map(s => [s.user_id, s.full_name]));
   const totalAbsences = attendance.filter(a => a.status === "absent").length;
   const totalLate = attendance.filter(a => a.status === "late").length;
   const avgScore = grades.length > 0
@@ -118,181 +92,139 @@ const ParentDashboard = () => {
     : null;
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Parent Dashboard</h1>
-        <p className="text-muted-foreground mt-1">
-          Monitoring {linkedStudents.map(s => s.full_name).join(", ")}
+    <div className="space-y-6 max-w-4xl mx-auto">
+      {/* Header */}
+      <div className="space-y-1">
+        <h1 className="text-2xl font-bold">Welcome, Parent</h1>
+        <p className="text-sm text-muted-foreground">
+          Monitoring: {linkedStudents.map(s => s.full_name).join(", ")}
         </p>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-primary/10">
-                <User className="h-5 w-5 text-primary" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Children</p>
-                <p className="text-2xl font-bold">{linkedStudents.length}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-green-100 dark:bg-green-900/30">
-                <GraduationCap className="h-5 w-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Avg Score</p>
-                <p className="text-2xl font-bold">{avgScore !== null ? `${avgScore}%` : "—"}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-red-100 dark:bg-red-900/30">
-                <ClipboardList className="h-5 w-5 text-red-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Absences</p>
-                <p className="text-2xl font-bold">{totalAbsences}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-yellow-100 dark:bg-yellow-900/30">
-                <Bell className="h-5 w-5 text-yellow-600" />
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Late</p>
-                <p className="text-2xl font-bold">{totalLate}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+      {/* Key Stats */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <StatCard icon={User} label="Children" value={linkedStudents.length} color="primary" />
+        <StatCard icon={TrendingUp} label="Avg Score" value={avgScore !== null ? `${avgScore}%` : "—"} color="green" />
+        <StatCard icon={AlertTriangle} label="Absences" value={totalAbsences} color="red" />
+        <StatCard icon={Clock} label="Late" value={totalLate} color="yellow" />
       </div>
 
-      {/* Tabs */}
+      {/* Content Tabs */}
       <Tabs defaultValue="grades" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="grades">Grades</TabsTrigger>
-          <TabsTrigger value="attendance">Attendance</TabsTrigger>
-          <TabsTrigger value="notifications">Notifications</TabsTrigger>
+        <TabsList className="w-full grid grid-cols-3">
+          <TabsTrigger value="grades" className="gap-1.5"><BookOpen className="h-3.5 w-3.5 hidden sm:block" />Grades</TabsTrigger>
+          <TabsTrigger value="attendance" className="gap-1.5"><ClipboardList className="h-3.5 w-3.5 hidden sm:block" />Attendance</TabsTrigger>
+          <TabsTrigger value="alerts" className="gap-1.5"><Bell className="h-3.5 w-3.5 hidden sm:block" />Alerts</TabsTrigger>
         </TabsList>
 
         <TabsContent value="grades">
-          <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2"><BookOpen className="h-5 w-5" /> Recent Grades</CardTitle></CardHeader>
-            <CardContent>
-              {grades.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">No grades recorded yet.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Student</TableHead>
-                      <TableHead>Class</TableHead>
-                      <TableHead>Assignment</TableHead>
-                      <TableHead>Score</TableHead>
-                      <TableHead>Date</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {grades.map((g: any) => (
-                      <TableRow key={g.id}>
-                        <TableCell className="font-medium">{studentNameMap[g.student_id] || "Unknown"}</TableCell>
-                        <TableCell>{g.classes?.name || "—"}</TableCell>
-                        <TableCell>{g.title}</TableCell>
-                        <TableCell>
-                          <span className={`font-semibold ${getScoreColor(g.score, g.max_score)}`}>
-                            {g.score}/{g.max_score}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-muted-foreground">{new Date(g.created_at).toLocaleDateString()}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          {grades.length === 0 ? (
+            <EmptyState icon={BookOpen} text="No grades recorded yet." />
+          ) : (
+            <div className="space-y-2">
+              {grades.map((g: any) => {
+                const pct = Math.round((g.score / g.max_score) * 100);
+                const color = pct >= 90 ? "text-green-600" : pct >= 70 ? "text-yellow-600" : "text-red-600";
+                return (
+                  <Card key={g.id} className="border">
+                    <CardContent className="py-3 px-4 flex items-center justify-between">
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-sm truncate">{g.title}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {studentNameMap[g.student_id]} · {g.classes?.name || "—"} · {new Date(g.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="text-right ml-3 shrink-0">
+                        <p className={`font-bold text-lg ${color}`}>{g.score}/{g.max_score}</p>
+                        <p className={`text-xs font-medium ${color}`}>{pct}%</p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="attendance">
-          <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2"><ClipboardList className="h-5 w-5" /> Recent Attendance</CardTitle></CardHeader>
-            <CardContent>
-              {attendance.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">No attendance records yet.</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Student</TableHead>
-                      <TableHead>Class</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {attendance.map((a: any) => (
-                      <TableRow key={a.id}>
-                        <TableCell className="font-medium">{studentNameMap[a.student_id] || "Unknown"}</TableCell>
-                        <TableCell>{a.classes?.name || "—"}</TableCell>
-                        <TableCell>{a.date}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={STATUS_COLORS[a.status] || ""}>
-                            {a.status}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
+          {attendance.length === 0 ? (
+            <EmptyState icon={ClipboardList} text="No attendance records yet." />
+          ) : (
+            <div className="space-y-2">
+              {attendance.map((a: any) => (
+                <Card key={a.id} className="border">
+                  <CardContent className="py-3 px-4 flex items-center justify-between">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-medium text-sm">{studentNameMap[a.student_id]}</p>
+                      <p className="text-xs text-muted-foreground">{a.classes?.name || "—"} · {a.date}</p>
+                    </div>
+                    <Badge variant="outline" className={`${STATUS_COLORS[a.status] || ""} capitalize shrink-0`}>
+                      {a.status}
+                    </Badge>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
 
-        <TabsContent value="notifications">
-          <Card>
-            <CardHeader><CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" /> Notifications</CardTitle></CardHeader>
-            <CardContent>
-              {notifications.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">No notifications yet.</p>
-              ) : (
-                <div className="space-y-3">
-                  {notifications.map((n: any) => (
-                    <div key={n.id} className={`p-4 rounded-lg border ${n.read ? "bg-background" : "bg-muted/50 border-primary/20"}`}>
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <p className="font-medium text-sm">{n.title}</p>
-                          <p className="text-sm text-muted-foreground mt-1">{n.message}</p>
-                        </div>
-                        <span className="text-xs text-muted-foreground whitespace-nowrap ml-4">
-                          {new Date(n.created_at).toLocaleDateString()}
-                        </span>
+        <TabsContent value="alerts">
+          {notifications.length === 0 ? (
+            <EmptyState icon={Bell} text="No notifications yet." />
+          ) : (
+            <div className="space-y-2">
+              {notifications.map((n: any) => (
+                <Card key={n.id} className={`border ${!n.read ? "border-primary/30 bg-primary/5" : ""}`}>
+                  <CardContent className="py-3 px-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-sm">{n.title}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{n.message}</p>
                       </div>
+                      <span className="text-[10px] text-muted-foreground whitespace-nowrap mt-0.5">
+                        {new Date(n.created_at).toLocaleDateString()}
+                      </span>
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>
   );
 };
+
+const StatCard = ({ icon: Icon, label, value, color }: { icon: any; label: string; value: string | number; color: string }) => {
+  const colorMap: Record<string, string> = {
+    primary: "bg-primary/10 text-primary",
+    green: "bg-green-100 text-green-600 dark:bg-green-900/30 dark:text-green-400",
+    red: "bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400",
+    yellow: "bg-yellow-100 text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400",
+  };
+  return (
+    <Card>
+      <CardContent className="pt-4 pb-3 px-4">
+        <div className="flex items-center gap-2.5">
+          <div className={`p-1.5 rounded-lg ${colorMap[color]}`}><Icon className="h-4 w-4" /></div>
+          <div>
+            <p className="text-[11px] text-muted-foreground leading-none">{label}</p>
+            <p className="text-xl font-bold mt-0.5">{value}</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
+const EmptyState = ({ icon: Icon, text }: { icon: any; text: string }) => (
+  <Card>
+    <CardContent className="flex flex-col items-center py-10 text-center">
+      <Icon className="h-10 w-10 text-muted-foreground/40 mb-2" />
+      <p className="text-sm text-muted-foreground">{text}</p>
+    </CardContent>
+  </Card>
+);
 
 export default ParentDashboard;
