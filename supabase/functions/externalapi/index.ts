@@ -53,7 +53,33 @@ Deno.serve(async (req) => {
       });
       if (linkErr) return json({ error: linkErr.message }, 400);
 
-      return json({ data: { id: linkData.user.id, email, invite_link: linkData.properties.action_link } }, 201);
+      const inviteLink = linkData.properties.action_link;
+
+      // Send the invite email via Resend
+      const resendKey = Deno.env.get("RESEND_API_KEY");
+      if (resendKey) {
+        try {
+          await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              from: "UnityClass <onboarding@resend.dev>",
+              to: [email],
+              subject: "You're invited to UnityClass",
+              html: `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+                <h2 style="color:#1a1a1a">Welcome to UnityClass!</h2>
+                <p style="color:#555;line-height:1.6">You've been invited to join UnityClass. Click the button below to set up your account (name, password, and Face ID).</p>
+                <a href="${inviteLink}" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin:16px 0">Accept Invitation</a>
+                <p style="color:#999;font-size:12px;margin-top:24px">If you didn't expect this invitation, you can safely ignore this email.</p>
+              </div>`,
+            }),
+          });
+        } catch (emailErr) {
+          console.error("Failed to send invite email:", emailErr);
+        }
+      }
+
+      return json({ data: { id: linkData.user.id, email } }, 201);
     }
 
     // Legacy create_user (for backward compat / external API)
