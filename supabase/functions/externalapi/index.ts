@@ -43,13 +43,17 @@ Deno.serve(async (req) => {
       const { email } = body;
       if (!email) return json({ error: "email required" }, 400);
 
-      // Use the published app URL so the magic link redirects correctly
       const redirectTo = req.headers.get("origin") || "https://unitylearning.lovable.app";
-      const { data: inviteData, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(email, {
-        redirectTo,
+
+      // Use generateLink to avoid triggering the email hook (which times out)
+      const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
+        type: "invite",
+        email,
+        options: { redirectTo },
       });
-      if (inviteErr) return json({ error: inviteErr.message }, 400);
-      return json({ data: { id: inviteData.user.id, email } }, 201);
+      if (linkErr) return json({ error: linkErr.message }, 400);
+
+      return json({ data: { id: linkData.user.id, email, invite_link: linkData.properties.action_link } }, 201);
     }
 
     // Legacy create_user (for backward compat / external API)

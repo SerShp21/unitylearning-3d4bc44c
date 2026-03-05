@@ -24,10 +24,11 @@ const UserManagement = () => {
   const [expelTarget, setExpelTarget] = useState<{ user_id: string; full_name: string } | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteLink, setInviteLink] = useState("");
   const [editFaceTarget, setEditFaceTarget] = useState<{ user_id: string; full_name: string } | null>(null);
   const [editFaceDescriptor, setEditFaceDescriptor] = useState<number[] | null>(null);
   const [editProfileTarget, setEditProfileTarget] = useState<any>(null);
-  const [editForm, setEditForm] = useState({ full_name: "", gender: "", parent_email: "" });
+  const [editForm, setEditForm] = useState({ full_name: "", gender: "", parent_email: "", parent_phone: "" });
 
   const { data: users = [] } = useQuery({
     queryKey: ["all-users"],
@@ -85,11 +86,16 @@ const UserManagement = () => {
       if (!response.ok) throw new Error(data.error || "Failed to invite user");
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["all-users"] });
       setInviteEmail("");
-      setCreateOpen(false);
-      toast.success("Invitation sent! The student will receive an email to set up their account.");
+      if (data?.data?.invite_link) {
+        setInviteLink(data.data.invite_link);
+        toast.success("User created! Share the invite link with the student.");
+      } else {
+        setCreateOpen(false);
+        toast.success("Invitation sent!");
+      }
     },
     onError: (err: any) => toast.error(err.message),
   });
@@ -114,6 +120,7 @@ const UserManagement = () => {
       if (editForm.full_name) updates.full_name = editForm.full_name;
       if (editForm.gender) updates.gender = editForm.gender;
       if (editForm.parent_email) updates.parent_email = editForm.parent_email;
+      if (editForm.parent_phone) updates.parent_phone = editForm.parent_phone;
       const { error } = await supabase.from("profiles").update(updates).eq("user_id", userId);
       if (error) throw error;
     },
@@ -173,17 +180,26 @@ const UserManagement = () => {
             </DialogTrigger>
             <DialogContent className="max-w-sm">
               <DialogHeader><DialogTitle>Invite New User</DialogTitle></DialogHeader>
-              <form onSubmit={e => { e.preventDefault(); inviteUser.mutate(); }} className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Student Email</Label>
-                  <Input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="student@example.com" required />
-                  <p className="text-xs text-muted-foreground">The student will receive an email to complete their account setup (name, password, Face ID, etc.)</p>
+              {inviteLink ? (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">User created! Share this link with the student:</p>
+                  <div className="bg-muted rounded-lg p-3 break-all text-xs font-mono">{inviteLink}</div>
+                  <Button className="w-full" onClick={() => { navigator.clipboard.writeText(inviteLink); toast.success("Link copied!"); }}>Copy Link</Button>
+                  <Button variant="outline" className="w-full" onClick={() => { setInviteLink(""); setCreateOpen(false); }}>Done</Button>
                 </div>
-                <Button type="submit" className="w-full" disabled={inviteUser.isPending}>
-                  <Mail className="h-4 w-4 mr-2" />
-                  {inviteUser.isPending ? "Sending..." : "Send Invitation"}
-                </Button>
-              </form>
+              ) : (
+                <form onSubmit={e => { e.preventDefault(); inviteUser.mutate(); }} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Student Email</Label>
+                    <Input type="email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="student@example.com" required />
+                    <p className="text-xs text-muted-foreground">A unique invite link will be generated. Share it with the student to complete their account setup.</p>
+                  </div>
+                  <Button type="submit" className="w-full" disabled={inviteUser.isPending}>
+                    <Mail className="h-4 w-4 mr-2" />
+                    {inviteUser.isPending ? "Creating..." : "Create & Get Link"}
+                  </Button>
+                </form>
+              )}
             </DialogContent>
           </Dialog>
         )}
@@ -258,6 +274,10 @@ const UserManagement = () => {
               <Label>Parent Email</Label>
               <Input type="email" value={editForm.parent_email} onChange={e => setEditForm(f => ({ ...f, parent_email: e.target.value }))} />
             </div>
+            <div className="space-y-1.5">
+              <Label>Parent Phone</Label>
+              <Input type="tel" value={editForm.parent_phone} onChange={e => setEditForm(f => ({ ...f, parent_phone: e.target.value }))} placeholder="+1234567890" />
+            </div>
             <Button type="submit" className="w-full" disabled={updateProfile.isPending}>{updateProfile.isPending ? "Saving..." : "Save Changes"}</Button>
           </form>
         </DialogContent>
@@ -307,7 +327,7 @@ const UserManagement = () => {
                       <>
                         <Button variant="ghost" size="sm" onClick={() => {
                           setEditProfileTarget(user);
-                          setEditForm({ full_name: user.full_name || "", gender: (user as any).gender || "", parent_email: (user as any).parent_email || "" });
+                          setEditForm({ full_name: user.full_name || "", gender: (user as any).gender || "", parent_email: (user as any).parent_email || "", parent_phone: (user as any).parent_phone || "" });
                         }}>
                           <Pencil className="h-3.5 w-3.5 mr-1" /> Edit
                         </Button>

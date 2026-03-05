@@ -14,3 +14,6 @@ verify_jwt = false
 
 [functions.notify-parent-sms]
 verify_jwt = false
+
+[functions.invite-parent]
+verify_jwt = false
