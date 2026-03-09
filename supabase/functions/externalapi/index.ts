@@ -45,46 +45,13 @@ Deno.serve(async (req) => {
 
       const redirectTo = req.headers.get("origin") || "https://unitylearning.lovable.app";
 
-      // Use generateLink to avoid triggering the email hook (which times out)
-      const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
-        type: "invite",
-        email,
-        options: { redirectTo },
+      // Use the built-in invite which sends the default auth email automatically
+      const { data, error: inviteErr } = await supabase.auth.admin.inviteUserByEmail(email, {
+        redirectTo,
       });
-      if (linkErr) return json({ error: linkErr.message }, 400);
+      if (inviteErr) return json({ error: inviteErr.message }, 400);
 
-      const inviteLink = linkData.properties.action_link;
-
-      // Send the invite email via Resend
-      const resendKey = Deno.env.get("RESEND_API_KEY");
-      if (!resendKey) {
-        console.error("RESEND_API_KEY not set");
-        return json({ error: "Email service not configured" }, 500);
-      }
-
-      const emailRes = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          from: "UnityClass <onboarding@resend.dev>",
-          to: [email],
-          subject: "You're invited to UnityClass",
-          html: `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
-            <h2 style="color:#1a1a1a">Welcome to UnityClass!</h2>
-            <p style="color:#555;line-height:1.6">You've been invited to join UnityClass. Click the button below to set up your account.</p>
-            <a href="${inviteLink}" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin:16px 0">Accept Invitation</a>
-            <p style="color:#999;font-size:12px;margin-top:24px">If you didn't expect this, ignore this email.</p>
-          </div>`,
-        }),
-      });
-
-      const emailData = await emailRes.json();
-      if (!emailRes.ok) {
-        console.error("Resend error:", JSON.stringify(emailData));
-        return json({ error: `Failed to send email: ${emailData.message || JSON.stringify(emailData)}` }, 500);
-      }
-
-      return json({ data: { id: linkData.user.id, email } }, 201);
+      return json({ data: { id: data.user.id, email } }, 201);
     }
 
     // Legacy create_user (for backward compat / external API)
