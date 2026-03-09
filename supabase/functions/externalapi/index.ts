@@ -57,26 +57,31 @@ Deno.serve(async (req) => {
 
       // Send the invite email via Resend
       const resendKey = Deno.env.get("RESEND_API_KEY");
-      if (resendKey) {
-        try {
-          await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              from: "UnityClass <onboarding@resend.dev>",
-              to: [email],
-              subject: "You're invited to UnityClass",
-              html: `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
-                <h2 style="color:#1a1a1a">Welcome to UnityClass!</h2>
-                <p style="color:#555;line-height:1.6">You've been invited to join UnityClass. Click the button below to set up your account (name, password, and Face ID).</p>
-                <a href="${inviteLink}" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin:16px 0">Accept Invitation</a>
-                <p style="color:#999;font-size:12px;margin-top:24px">If you didn't expect this invitation, you can safely ignore this email.</p>
-              </div>`,
-            }),
-          });
-        } catch (emailErr) {
-          console.error("Failed to send invite email:", emailErr);
-        }
+      if (!resendKey) {
+        console.error("RESEND_API_KEY not set");
+        return json({ error: "Email service not configured" }, 500);
+      }
+
+      const emailRes = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${resendKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: "UnityClass <onboarding@resend.dev>",
+          to: [email],
+          subject: "You're invited to UnityClass",
+          html: `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px">
+            <h2 style="color:#1a1a1a">Welcome to UnityClass!</h2>
+            <p style="color:#555;line-height:1.6">You've been invited to join UnityClass. Click the button below to set up your account.</p>
+            <a href="${inviteLink}" style="display:inline-block;background:#7c3aed;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:600;margin:16px 0">Accept Invitation</a>
+            <p style="color:#999;font-size:12px;margin-top:24px">If you didn't expect this, ignore this email.</p>
+          </div>`,
+        }),
+      });
+
+      const emailData = await emailRes.json();
+      if (!emailRes.ok) {
+        console.error("Resend error:", JSON.stringify(emailData));
+        return json({ error: `Failed to send email: ${emailData.message || JSON.stringify(emailData)}` }, 500);
       }
 
       return json({ data: { id: linkData.user.id, email } }, 201);
