@@ -1,5 +1,3 @@
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-
 Deno.serve(async (req) => {
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
@@ -14,12 +12,9 @@ Deno.serve(async (req) => {
     new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
   try {
-    const TWILIO_ACCOUNT_SID = Deno.env.get("TWILIO_ACCOUNT_SID");
-    const TWILIO_AUTH_TOKEN = Deno.env.get("TWILIO_AUTH_TOKEN");
-    const TWILIO_PHONE_NUMBER = Deno.env.get("TWILIO_PHONE_NUMBER");
-
-    if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_PHONE_NUMBER) {
-      return json({ error: "Twilio credentials not configured" }, 500);
+    const NOTILIFY_API_KEY = Deno.env.get("NOTILIFY_API_KEY");
+    if (!NOTILIFY_API_KEY) {
+      return json({ error: "NOTILIFY_API_KEY not configured" }, 500);
     }
 
     const body = await req.json();
@@ -30,32 +25,28 @@ Deno.serve(async (req) => {
     }
 
     const inviteUrl = `${app_url || "https://unitylearning.lovable.app"}/parent-signup?token=${token}`;
-
     const message = `📚 UnityClass: ${student_name || "Your child"} has added you as their parent. Create your parent account to track their grades & attendance:\n${inviteUrl}`;
 
-    const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Messages.json`;
-    const authStr = btoa(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`);
-
-    const res = await fetch(twilioUrl, {
+    const res = await fetch("https://api.notilify.com/v1/messages", {
       method: "POST",
       headers: {
-        "Authorization": `Basic ${authStr}`,
-        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": `Bearer ${NOTILIFY_API_KEY}`,
+        "Content-Type": "application/json",
       },
-      body: new URLSearchParams({
-        From: TWILIO_PHONE_NUMBER,
-        To: parent_phone,
-        Body: message,
+      body: JSON.stringify({
+        to: parent_phone,
+        from: "UnityClass",
+        body: message,
       }),
     });
 
     const result = await res.json();
     if (!res.ok) {
-      console.error("Twilio error:", result);
+      console.error("Notilify error:", result);
       return json({ error: result.message || "Failed to send SMS" }, 500);
     }
 
-    return json({ success: true, sid: result.sid });
+    return json({ success: true, id: result.id });
   } catch (err) {
     console.error("invite-parent error:", err);
     return json({ error: (err as Error).message }, 500);
